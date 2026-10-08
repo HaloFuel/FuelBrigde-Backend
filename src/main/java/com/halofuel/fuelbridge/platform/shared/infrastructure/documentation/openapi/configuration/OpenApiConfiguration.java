@@ -42,12 +42,16 @@ public class OpenApiConfiguration {
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0.html")));
 
-        openApi.servers(List.of(
-                new Server()
-                        .url("http://localhost:8080")
-                        .description("Local Development Environment")
+       openApi.servers(List.of(
+        new Server()
+                .url("https://fuelbrigde-backend-production.up.railway.app")
+                .description("Railway Production Environment"),
+        new Server()
+                .url("http://localhost:8080")
+                .description("Local Development Environment")
+        
         ));
-
+        
         final String securitySchemeName = "bearerAuth";
         openApi.addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
