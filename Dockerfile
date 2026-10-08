@@ -16,6 +16,6 @@ FROM eclipse-temurin:26-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
-# Render inyecta el puerto via $PORT; Spring lo lee con server.port=${PORT:8080}
+# La plataforma (Railway/Render/etc.) inyecta el puerto via $PORT; el perfil "mysql" lo lee con server.port=${PORT:8080}
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
