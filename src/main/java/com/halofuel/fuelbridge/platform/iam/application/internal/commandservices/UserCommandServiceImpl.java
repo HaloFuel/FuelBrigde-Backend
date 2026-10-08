@@ -6,12 +6,15 @@ import com.halofuel.fuelbridge.platform.iam.application.internal.outboundservice
 import com.halofuel.fuelbridge.platform.iam.domain.model.aggregates.User;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignInCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignUpCommand;
+import com.halofuel.fuelbridge.platform.iam.domain.model.entities.Role;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.RoleRepository;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.UserRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class UserCommandServiceImpl implements UserCommandService {
@@ -47,7 +50,10 @@ public class UserCommandServiceImpl implements UserCommandService {
         if (userRepository.existsByUsername(command.username())) {
             return Result.failure(ApplicationError.conflict("User", "Username already exists"));
         }
-        var roles = command.roles().stream()
+        var requestedRoles = command.roles().isEmpty()
+                ? List.of(Role.getDefaultRole())
+                : command.roles();
+        var roles = requestedRoles.stream()
                 .map(role -> roleRepository.findByName(role.getName()))
                 .toList();
         if (roles.stream().anyMatch(java.util.Optional::isEmpty)) {
