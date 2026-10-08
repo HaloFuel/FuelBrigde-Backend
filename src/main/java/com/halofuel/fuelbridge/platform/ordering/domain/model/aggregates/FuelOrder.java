@@ -1,6 +1,9 @@
 package com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates;
 
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderCancelledEvent;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderConfirmedEvent;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderDispatchedEvent;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.shared.domain.model.aggregates.AbstractDomainAggregateRoot;
 import lombok.Getter;
@@ -40,15 +43,18 @@ public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
 
     public void confirm() {
         this.status = OrderStatus.CONFIRMED;
+        registerDomainEvent(new FuelOrderConfirmedEvent(this.id, this.companyId));
     }
 
     public void cancel() {
         this.status = OrderStatus.CANCELLED;
+        registerDomainEvent(new FuelOrderCancelledEvent(this.id, this.companyId));
     }
 
     public void dispatch() {
         if (status != OrderStatus.PENDING) throw new IllegalStateException("Order is not pending assignment");
         this.status = OrderStatus.DISPATCHED;
+        registerDomainEvent(new FuelOrderDispatchedEvent(this.id, this.companyId));
     }
 
     public void receive() {

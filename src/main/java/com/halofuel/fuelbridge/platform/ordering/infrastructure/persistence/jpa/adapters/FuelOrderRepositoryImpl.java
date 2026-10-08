@@ -4,6 +4,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrd
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.assemblers.FuelOrderPersistenceAssembler;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.FuelOrderPersistenceRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -13,9 +14,12 @@ import java.util.Optional;
 public class FuelOrderRepositoryImpl implements FuelOrderRepository {
 
     private final FuelOrderPersistenceRepository fuelOrderPersistenceRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
-    public FuelOrderRepositoryImpl(FuelOrderPersistenceRepository fuelOrderPersistenceRepository) {
+    public FuelOrderRepositoryImpl(FuelOrderPersistenceRepository fuelOrderPersistenceRepository,
+                                   ApplicationEventPublisher applicationEventPublisher) {
         this.fuelOrderPersistenceRepository = fuelOrderPersistenceRepository;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     @Override
@@ -48,7 +52,9 @@ public class FuelOrderRepositoryImpl implements FuelOrderRepository {
     @Override
     public FuelOrder save(FuelOrder fuelOrder) {
         var entity = FuelOrderPersistenceAssembler.toPersistenceFromDomain(fuelOrder);
-        return FuelOrderPersistenceAssembler.toDomainFromPersistence(
-                fuelOrderPersistenceRepository.save(entity));
+        var savedEntity = fuelOrderPersistenceRepository.save(entity);
+        fuelOrder.domainEvents().forEach(applicationEventPublisher::publishEvent);
+        fuelOrder.clearDomainEvents();
+        return FuelOrderPersistenceAssembler.toDomainFromPersistence(savedEntity);
     }
 }

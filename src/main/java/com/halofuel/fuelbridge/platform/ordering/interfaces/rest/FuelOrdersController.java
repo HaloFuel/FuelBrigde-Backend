@@ -4,6 +4,7 @@ import com.halofuel.fuelbridge.platform.ordering.application.commandservices.Fue
 import com.halofuel.fuelbridge.platform.ordering.application.queryservices.FuelOrderQueryService;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetAllFuelOrdersQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrderByIdQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrdersByCompanyIdQuery;
@@ -57,6 +58,15 @@ public class FuelOrdersController {
     @PostMapping("/{orderId}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new CancelFuelOrderCommand(orderId));
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
+    }
+
+    @PostMapping("/{orderId}/dispatch")
+    public ResponseEntity<?> dispatchOrder(@PathVariable Long orderId) {
+        var result = fuelOrderCommandService.handle(new DispatchFuelOrderCommand(orderId));
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
