@@ -1,5 +1,16 @@
 package com.halofuel.fuelbridge.platform.notification.interfaces.rest;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
 import com.halofuel.fuelbridge.platform.notification.application.commandservices.NotificationCommandService;
 import com.halofuel.fuelbridge.platform.notification.application.queryservices.NotificationQueryService;
 import com.halofuel.fuelbridge.platform.notification.domain.model.commands.MarkNotificationAsReadCommand;
@@ -20,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@io.swagger.v3.oas.annotations.security.SecurityScheme(name = "bearerAuth", type = io.swagger.v3.oas.annotations.enums.SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT", description = "JWT emitido por FuelBridge API y validado con AUTHORIZATION_JWT_SECRET.")
 @RestController
 @RequestMapping(value = "/api/v1/notifications", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Notifications", description = "Notification management endpoints")
@@ -37,6 +49,23 @@ public class NotificationsController {
         this.userRepository = userRepository;
     }
 
+    @Operation(
+        summary = "Crear notificación",
+        description = "Guarda una notificación inicialmente no leída. Usa userId si está presente; de lo contrario resuelve companyId y luego providerId consultando IAM. referenceId permite vincularla a un pedido u otro recurso.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para crear notificación.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.CreateNotificationResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"userId\":1101,\"companyId\":null,\"providerId\":null,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"referenceId\":4101}"), @ExampleObject(name = "porComprador", value = "{\"companyId\":101,\"type\":\"ORDER_CONFIRMED\",\"title\":\"Pedido confirmado\",\"message\":\"El pedido número 4101 ha sido confirmado.\",\"referenceId\":4101}"), @ExampleObject(name = "porProveedor", value = "{\"providerId\":202,\"type\":\"PAYMENT_RECEIVED\",\"title\":\"Pago recibido\",\"message\":\"Se recibió el pago del pedido 4101.\",\"referenceId\":4101}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content),
+        @ApiResponse(responseCode = "502", description = "No se pudo obtener una respuesta válida del servicio del que depende esta operación.", content = @Content)
+    })
     @PostMapping
     public ResponseEntity<?> createNotification(@RequestBody CreateNotificationResource resource) {
         var userId = resolveUserId(resource);
@@ -53,6 +82,22 @@ public class NotificationsController {
                 HttpStatus.CREATED);
     }
 
+    @Operation(
+        summary = "Marcar notificación como leída",
+        description = "Marca como leída una notificación existente y devuelve su estado actualizado. Repetir la operación mantiene read=true. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "notificationId", in = ParameterIn.PATH, required = true, description = "Identificador del notificación.", example = "1301")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":true,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping("/{notificationId}/mark-as-read")
     public ResponseEntity<?> markAsRead(@PathVariable Long notificationId) {
         var result = notificationCommandService.handle(new MarkNotificationAsReadCommand(notificationId));
@@ -62,6 +107,22 @@ public class NotificationsController {
                 HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Consultar notificación",
+        description = "Devuelve la notificación identificada, incluido su estado de lectura y recurso de referencia.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "notificationId", in = ParameterIn.PATH, required = true, description = "Identificador del notificación.", example = "1301")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/{notificationId}")
     public ResponseEntity<NotificationResource> getNotificationById(@PathVariable Long notificationId) {
         var result = notificationQueryService.handle(new GetNotificationByIdQuery(notificationId));
@@ -70,6 +131,21 @@ public class NotificationsController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @Operation(
+        summary = "Listar notificaciones de un usuario",
+        description = "Devuelve todas las notificaciones del usuario identificado, leídas y no leídas.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "userId", in = ParameterIn.PATH, required = true, description = "Identificador del usuario destinatario.", example = "1101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<NotificationResource>> getNotificationsByUser(@PathVariable Long userId) {
         var notifications = notificationQueryService.handle(new GetNotificationsByUserIdQuery(userId));
@@ -77,6 +153,22 @@ public class NotificationsController {
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Listar notificaciones de un comprador",
+        description = "Resuelve el usuario de la empresa compradora consultando IAM y devuelve sus notificaciones. Si no existe usuario asociado devuelve una lista vacía.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content),
+        @ApiResponse(responseCode = "502", description = "No se pudo obtener una respuesta válida del servicio del que depende esta operación.", content = @Content)
+    })
     @GetMapping("/buyer/{companyId}")
     public ResponseEntity<List<NotificationResource>> getNotificationsByBuyer(@PathVariable Long companyId) {
         return userRepository.findByCompanyId(companyId)
@@ -84,6 +176,22 @@ public class NotificationsController {
                 .orElse(ResponseEntity.ok(List.of()));
     }
 
+    @Operation(
+        summary = "Listar notificaciones de un proveedor",
+        description = "Resuelve el usuario del proveedor consultando IAM y devuelve sus notificaciones. Si no existe usuario asociado devuelve una lista vacía.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "providerId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa proveedora.", example = "202")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content),
+        @ApiResponse(responseCode = "502", description = "No se pudo obtener una respuesta válida del servicio del que depende esta operación.", content = @Content)
+    })
     @GetMapping("/provider/{providerId}")
     public ResponseEntity<List<NotificationResource>> getNotificationsByProvider(@PathVariable Long providerId) {
         return userRepository.findByProviderId(providerId)
@@ -91,6 +199,21 @@ public class NotificationsController {
                 .orElse(ResponseEntity.ok(List.of()));
     }
 
+    @Operation(
+        summary = "Listar notificaciones no leídas",
+        description = "Devuelve únicamente las notificaciones con read=false del usuario identificado.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "userId", in = ParameterIn.PATH, required = true, description = "Identificador del usuario destinatario.", example = "1101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.notification.interfaces.rest.resources.NotificationResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":1301,\"userId\":1101,\"type\":\"ORDER_DISPATCHED\",\"title\":\"Pedido despachado\",\"message\":\"El pedido número 4101 ha sido despachado.\",\"read\":false,\"referenceId\":4101,\"createdAt\":\"2026-10-09T14:30:00Z\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/user/{userId}/unread")
     public ResponseEntity<List<NotificationResource>> getUnreadByUser(@PathVariable Long userId) {
         var notifications = notificationQueryService.handle(new GetUnreadNotificationsByUserIdQuery(userId));
