@@ -9,6 +9,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * VehiclesController
+ *
+ * REST controller that exposes CRUD endpoints for vehicle management (TS-19).
+ * Allows providers to register, update, retrieve and delete vehicles
+ * assigned to their fleet within the Fulfillment bounded context.
+ *
+ * Base path: /api/v1/vehicles
+ */
+
 @RestController
 @RequestMapping("/api/v1/vehicles")
 public class VehiclesController {
