@@ -24,6 +24,13 @@ public class WebSecurityConfiguration {
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(
+                                "/api-docs/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/swagger-resources/**",
+                                "/webjars/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(new BearerAuthorizationRequestFilter(tokenService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
