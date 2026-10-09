@@ -9,6 +9,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * DriversController
+ *
+ * REST controller that exposes CRUD endpoints for driver management (TS-18).
+ * Allows providers to register, update, retrieve and delete drivers
+ * assigned to their fleet within the Fulfillment bounded context.
+ *
+ * Base path: /api/v1/drivers
+ */
+
 @RestController
 @RequestMapping("/api/v1/drivers")
 public class DriversController {

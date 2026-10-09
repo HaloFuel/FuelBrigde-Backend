@@ -17,6 +17,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
+/**
+ * Controlador REST para la gestión de autenticación y acceso (IAM).
+ */
+
 @RestController
 @RequestMapping(value = "/api/v1/authentication", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Authentication", description = "Authentication endpoints")
@@ -27,6 +32,7 @@ public class AuthenticationController {
     public AuthenticationController(UserCommandService userCommandService) {
         this.userCommandService = userCommandService;
     }
+
 
     @PostMapping("/sign-up")
     public ResponseEntity<?> signUp(@RequestBody SignUpResource resource) {

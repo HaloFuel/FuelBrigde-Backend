@@ -7,6 +7,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFu
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,13 +18,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class FuelOrderCommandServiceImplTest {
+
     private FuelOrderRepository repository;
     private FuelOrderCommandServiceImpl service;
 
     @BeforeEach
     void setUp() {
         repository = mock(FuelOrderRepository.class);
-        service = new FuelOrderCommandServiceImpl(repository, mock(FuelProductQueryService.class));
+        service = new FuelOrderCommandServiceImpl(
+                repository,
+                mock(FuelProductQueryService.class)
+        );
     }
 
     @Test
@@ -42,14 +47,26 @@ class FuelOrderCommandServiceImplTest {
         var confirmed = pendingOrder(1L);
         var cancelled = pendingOrder(2L);
         var dispatched = pendingOrder(3L);
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertSame(confirmed, service.handle(new ConfirmFuelOrderCommand(1L)).toOptional().orElseThrow());
-        assertSame(cancelled, service.handle(new CancelFuelOrderCommand(2L)).toOptional().orElseThrow());
-        assertSame(dispatched, service.handle(new DispatchFuelOrderCommand(3L)).toOptional().orElseThrow());
+        when(repository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertSame(confirmed, service.handle(
+                new ConfirmFuelOrderCommand(1L)
+        ).toOptional().orElseThrow());
+
+        assertSame(cancelled, service.handle(
+                new CancelFuelOrderCommand(2L)
+        ).toOptional().orElseThrow());
+
+        assertSame(dispatched, service.handle(
+                new DispatchFuelOrderCommand(3L)
+        ).toOptional().orElseThrow());
+
         assertEquals(OrderStatus.CONFIRMED, confirmed.getStatus());
         assertEquals(OrderStatus.CANCELLED, cancelled.getStatus());
         assertEquals(OrderStatus.DISPATCHED, dispatched.getStatus());
+
         verify(repository).save(confirmed);
         verify(repository).save(cancelled);
         verify(repository).save(dispatched);
@@ -60,9 +77,34 @@ class FuelOrderCommandServiceImplTest {
         var order = pendingOrder(1L);
         order.setStatus(OrderStatus.CANCELLED);
 
-        assertThrows(IllegalStateException.class, () -> service.handle(new DispatchFuelOrderCommand(1L)));
+        assertThrows(IllegalStateException.class,
+                () -> service.handle(new DispatchFuelOrderCommand(1L)));
 
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        verify(repository, never()).save(any());
+    }
+
+    /**
+     * Sprint 1 - US-12
+     * Verifies that paid orders cannot be dispatched again.
+     */
+    @Test
+    void paidOrdersCannotBeDispatched() {
+        // Create an existing paid order
+        var order = pendingOrder(4L);
+        order.setStatus(OrderStatus.PAID);
+
+        // Attempt to dispatch the paid order
+        assertThrows(IllegalStateException.class,
+                () -> service.handle(new DispatchFuelOrderCommand(4L)));
+
+        // Verify the original status is preserved
+        assertEquals(OrderStatus.PAID, order.getStatus());
+
+        // Verify no new event is registered
+        assertTrue(order.domainEvents().isEmpty());
+
+        // Verify the invalid change is not saved
         verify(repository, never()).save(any());
     }
 
@@ -71,7 +113,10 @@ class FuelOrderCommandServiceImplTest {
         order.setId(id);
         order.setCompanyId(10L);
         order.setStatus(OrderStatus.PENDING);
-        when(repository.findById(id)).thenReturn(Optional.of(order));
+
+        when(repository.findById(id))
+                .thenReturn(Optional.of(order));
+
         return order;
     }
 }
