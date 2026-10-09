@@ -4,12 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.server.ResponseStatusException;
+import java.nio.charset.StandardCharsets;
 
 /** HTTP boundary for capabilities extracted from this API. */
 public class StandaloneServiceClient {
@@ -44,7 +45,8 @@ public class StandaloneServiceClient {
                 return new ResponseEntity<>(received.getBody().readAllBytes(), headers, received.getStatusCode());
             });
         } catch (RestClientException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Standalone service unavailable", ex);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"message\":\"Standalone service unavailable\"}".getBytes(StandardCharsets.UTF_8));
         }
     }
 }
