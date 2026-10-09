@@ -1,1 +1,0 @@
-package com.halofuel.fuelbridge.platform.notification.domain;
