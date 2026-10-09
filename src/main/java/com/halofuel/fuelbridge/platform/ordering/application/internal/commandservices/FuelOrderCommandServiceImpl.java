@@ -13,6 +13,14 @@ import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationErr
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 import org.springframework.stereotype.Service;
 
+import java.util.function.Consumer;
+
+/**
+ * Coordinates order commands and persistence. Status changes and their domain
+ * events belong to the aggregate; handlers invoke its methods before saving.
+ * Confirmation and cancellation currently have no source-status guard, while
+ * dispatch requires PENDING and rejects other states with IllegalStateException.
+ */
 @Service
 public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
 
@@ -32,6 +40,8 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
             return Result.failure(ApplicationError.notFound("FuelProduct", command.fuelProductId().toString()));
         }
         var product = productResult.get();
+        // Capture the catalog price at creation so later price changes do not
+        // recalculate the amount stored on this order.
         var totalPrice = product.getPricePerUnit() * command.requestedQuantity();
         var order = new FuelOrder(command, totalPrice);
         var saved = fuelOrderRepository.save(order);
@@ -40,34 +50,26 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
 
     @Override
     public Result<FuelOrder, ApplicationError> handle(ConfirmFuelOrderCommand command) {
-        var existing = fuelOrderRepository.findById(command.orderId());
-        if (existing.isEmpty()) {
-            return Result.failure(ApplicationError.notFound("FuelOrder", command.orderId().toString()));
-        }
-        var order = existing.get();
-        order.confirm();
-        return Result.success(fuelOrderRepository.save(order));
+        return updateOrder(command.orderId(), FuelOrder::confirm);
     }
 
     @Override
     public Result<FuelOrder, ApplicationError> handle(CancelFuelOrderCommand command) {
-        var existing = fuelOrderRepository.findById(command.orderId());
-        if (existing.isEmpty()) {
-            return Result.failure(ApplicationError.notFound("FuelOrder", command.orderId().toString()));
-        }
-        var order = existing.get();
-        order.cancel();
-        return Result.success(fuelOrderRepository.save(order));
+        return updateOrder(command.orderId(), FuelOrder::cancel);
     }
 
     @Override
     public Result<FuelOrder, ApplicationError> handle(DispatchFuelOrderCommand command) {
-        var existing = fuelOrderRepository.findById(command.orderId());
+        return updateOrder(command.orderId(), FuelOrder::dispatch);
+    }
+
+    private Result<FuelOrder, ApplicationError> updateOrder(Long orderId, Consumer<FuelOrder> transition) {
+        var existing = fuelOrderRepository.findById(orderId);
         if (existing.isEmpty()) {
-            return Result.failure(ApplicationError.notFound("FuelOrder", command.orderId().toString()));
+            return Result.failure(ApplicationError.notFound("FuelOrder", orderId.toString()));
         }
         var order = existing.get();
-        order.dispatch();
+        transition.accept(order);
         return Result.success(fuelOrderRepository.save(order));
     }
 }
