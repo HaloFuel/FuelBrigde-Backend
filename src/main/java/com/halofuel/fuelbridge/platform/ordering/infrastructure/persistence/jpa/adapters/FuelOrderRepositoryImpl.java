@@ -16,7 +16,6 @@ import java.util.Optional;
 @Repository
 public class FuelOrderRepositoryImpl implements FuelOrderRepository {
 
-    // Sprint 1 - T02.02: Logger for order domain events
     private static final Logger log =
             LoggerFactory.getLogger(FuelOrderRepositoryImpl.class);
 
@@ -63,8 +62,20 @@ public class FuelOrderRepositoryImpl implements FuelOrderRepository {
         var entity = FuelOrderPersistenceAssembler.toPersistenceFromDomain(fuelOrder);
         var savedEntity = fuelOrderPersistenceRepository.save(entity);
 
-        // Sprint 1 - T02.02: Publish order domain events
-        // The Notification module listens to these events.
+        // Sprint 1 - T02.02: Publish pending order events
+        publishDomainEvents(fuelOrder);
+
+        return FuelOrderPersistenceAssembler.toDomainFromPersistence(savedEntity);
+    }
+
+    /**
+     * Publishes pending fuel order events.
+     * This method supports automatic notifications from Sprint 1.
+     *
+     * @param fuelOrder order containing pending domain events
+     */
+    private void publishDomainEvents(FuelOrder fuelOrder) {
+
         fuelOrder.domainEvents().forEach(event -> {
 
             applicationEventPublisher.publishEvent(event);
@@ -76,9 +87,7 @@ public class FuelOrderRepositoryImpl implements FuelOrderRepository {
             );
         });
 
-        // Clear events after publication
+        // Remove events after publication
         fuelOrder.clearDomainEvents();
-
-        return FuelOrderPersistenceAssembler.toDomainFromPersistence(savedEntity);
     }
 }
