@@ -16,6 +16,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.function.Function;
 
+/**
+ * TokenServiceImpl
+ *
+ * JWT implementation of BearerTokenService (TS-01).
+ * Handles JWT generation, validation and username extraction
+ * using HMAC-SHA signing with a configurable secret and expiration period.
+ *
+ * Token expiration is configured via authorization.jwt.expiration.days property.
+ * The signing secret is configured via authorization.jwt.secret property.
+ */
+
 @Service
 @Slf4j
 public class TokenServiceImpl implements BearerTokenService {
