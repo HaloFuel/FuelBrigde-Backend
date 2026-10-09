@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -24,8 +26,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Import(CucumberSpringConfiguration.EventTestConfiguration.class)
 public class CucumberSpringConfiguration {
 
+    private static final NotificationHttpStub NOTIFICATION_SERVICE = new NotificationHttpStub();
+
+    @DynamicPropertySource
+    static void notificationServiceProperties(DynamicPropertyRegistry registry) {
+        registry.add("notification.service.url", NOTIFICATION_SERVICE::baseUrl);
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     public static class EventTestConfiguration {
+
+        @Bean(destroyMethod = "close")
+        public NotificationHttpStub notificationHttpStub() {
+            return NOTIFICATION_SERVICE;
+        }
 
         @Bean
         public DispatchEventRecorder dispatchEventRecorder() {

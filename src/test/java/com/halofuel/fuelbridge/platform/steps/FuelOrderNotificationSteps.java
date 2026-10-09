@@ -9,8 +9,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchF
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 
-import com.halofuel.fuelbridge.platform.notification.domain.model.valueobjects.NotificationType;
-import com.halofuel.fuelbridge.platform.notification.domain.repositories.NotificationRepository;
+import com.halofuel.fuelbridge.platform.iam.infrastructure.tokens.jwt.BearerTokenService;
 
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.When;
@@ -35,7 +34,10 @@ public class FuelOrderNotificationSteps {
     private FuelOrderCommandService fuelOrderCommandService;
 
     @Autowired
-    private NotificationRepository notificationRepository;
+    private NotificationHttpStub notificationService;
+
+    @Autowired
+    private BearerTokenService tokenService;
 
     @Autowired
     private CucumberSpringConfiguration.DispatchEventRecorder eventRecorder;
@@ -47,6 +49,7 @@ public class FuelOrderNotificationSteps {
     public void aBuyerExistsForCompany(int companyId) {
 
         eventRecorder.clear();
+        notificationService.clear();
 
         String username = "buyer-test-" + UUID.randomUUID();
 
@@ -109,19 +112,15 @@ public class FuelOrderNotificationSteps {
     @Then("an {string} notification should be created for the buyer")
     public void aNotificationShouldBeCreated(String type) {
 
-        NotificationType expectedType = NotificationType.valueOf(type);
-
-        var notifications = notificationRepository.findByUserId(buyer.getId());
-
-        boolean exists = notifications.stream().anyMatch(notification ->
-                notification.getType() == expectedType
-                && fuelOrder.getId().equals(notification.getReferenceId())
-                && !notification.isRead()
-        );
-
-        assertTrue(
-                exists,
-                "The expected notification was not created"
-        );
+        var accepted = notificationService.accepted().stream()
+                .filter(notification -> type.equals(notification.request().type())
+                        && buyer.getId().equals(notification.request().userId())
+                        && fuelOrder.getId().equals(notification.request().referenceId()))
+                .findFirst().orElseThrow(() -> new AssertionError("The notification HTTP request was not accepted"));
+        assertNotNull(accepted.authorization());
+        assertTrue(accepted.authorization().startsWith("Bearer "));
+        var jwt = accepted.authorization().substring(7);
+        assertTrue(tokenService.validateToken(jwt));
+        assertEquals("fuelbridge-notification-publisher", tokenService.getUsernameFromToken(jwt));
     }
 }
