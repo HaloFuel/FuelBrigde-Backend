@@ -33,6 +33,7 @@ public class AuthenticationController {
         this.userCommandService = userCommandService;
     }
 
+
     @PostMapping("/sign-up")
     public ResponseEntity<?> signUp(@RequestBody SignUpResource resource) {
         var command = SignUpCommandFromResourceAssembler.toCommandFromResource(resource);
