@@ -4,6 +4,9 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrd
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.assemblers.FuelOrderPersistenceAssembler;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.FuelOrderPersistenceRepository;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Repository;
 
@@ -13,11 +16,16 @@ import java.util.Optional;
 @Repository
 public class FuelOrderRepositoryImpl implements FuelOrderRepository {
 
+    // Sprint 1 - T02.02: Logger for order domain events
+    private static final Logger log =
+            LoggerFactory.getLogger(FuelOrderRepositoryImpl.class);
+
     private final FuelOrderPersistenceRepository fuelOrderPersistenceRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    public FuelOrderRepositoryImpl(FuelOrderPersistenceRepository fuelOrderPersistenceRepository,
-                                   ApplicationEventPublisher applicationEventPublisher) {
+    public FuelOrderRepositoryImpl(
+            FuelOrderPersistenceRepository fuelOrderPersistenceRepository,
+            ApplicationEventPublisher applicationEventPublisher) {
         this.fuelOrderPersistenceRepository = fuelOrderPersistenceRepository;
         this.applicationEventPublisher = applicationEventPublisher;
     }
@@ -51,10 +59,26 @@ public class FuelOrderRepositoryImpl implements FuelOrderRepository {
 
     @Override
     public FuelOrder save(FuelOrder fuelOrder) {
+
         var entity = FuelOrderPersistenceAssembler.toPersistenceFromDomain(fuelOrder);
         var savedEntity = fuelOrderPersistenceRepository.save(entity);
-        fuelOrder.domainEvents().forEach(applicationEventPublisher::publishEvent);
+
+        // Sprint 1 - T02.02: Publish order domain events
+        // The Notification module listens to these events.
+        fuelOrder.domainEvents().forEach(event -> {
+
+            applicationEventPublisher.publishEvent(event);
+
+            log.debug(
+                    "Published {} for fuel order {}",
+                    event.getClass().getSimpleName(),
+                    fuelOrder.getId()
+            );
+        });
+
+        // Clear events after publication
         fuelOrder.clearDomainEvents();
+
         return FuelOrderPersistenceAssembler.toDomainFromPersistence(savedEntity);
     }
 }
