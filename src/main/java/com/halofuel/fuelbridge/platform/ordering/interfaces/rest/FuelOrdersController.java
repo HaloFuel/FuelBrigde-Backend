@@ -1,5 +1,15 @@
 package com.halofuel.fuelbridge.platform.ordering.interfaces.rest;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
 import com.halofuel.fuelbridge.platform.ordering.application.commandservices.FuelOrderCommandService;
 import com.halofuel.fuelbridge.platform.ordering.application.queryservices.FuelOrderQueryService;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
@@ -42,6 +52,23 @@ public class FuelOrdersController {
         this.fuelOrderQueryService = fuelOrderQueryService;
     }
 
+    @Operation(
+        summary = "Crear pedido de combustible",
+        description = "Registra un pedido PENDING y calcula el precio total usando el precio vigente del producto y la cantidad solicitada.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para crear pedido de combustible.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.CreateFuelOrderResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping
     public ResponseEntity<?> createFuelOrder(@RequestBody CreateFuelOrderResource resource) {
         var command = CreateFuelOrderCommandFromResourceAssembler.toCommandFromResource(resource);
@@ -53,6 +80,22 @@ public class FuelOrdersController {
                 HttpStatus.CREATED);
     }
 
+    @Operation(
+        summary = "Confirmar pedido",
+        description = "Cambia el estado del pedido a CONFIRMED y publica el evento que solicita una notificación al comprador. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"CONFIRMED\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping("/{orderId}/confirm")
     public ResponseEntity<?> confirmOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new ConfirmFuelOrderCommand(orderId));
@@ -63,6 +106,22 @@ public class FuelOrdersController {
                 HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Cancelar pedido",
+        description = "Cambia el estado del pedido a CANCELLED y publica el evento que solicita una notificación al comprador. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"CANCELLED\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping("/{orderId}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new CancelFuelOrderCommand(orderId));
@@ -84,9 +143,21 @@ public class FuelOrdersController {
      * @return respuesta HTTP con el pedido actualizado
      */
     @Operation(
-            summary = "Dispatch a fuel order",
-            description = "US-12: dispatches a pending fuel order and triggers an order notification event."
+        summary = "Despachar pedido",
+        description = "Despacha un pedido PENDING, cambia su estado a DISPATCHED y solicita una notificación al comprador. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
     )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"DISPATCHED\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Pedido en un estado que no permite despacho, fallo de persistencia o error en la llamada al servicio de notificaciones.", content = @Content)
+    })
     @PostMapping("/{orderId}/dispatch")
     public ResponseEntity<?> dispatchOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new DispatchFuelOrderCommand(orderId));
@@ -97,6 +168,17 @@ public class FuelOrdersController {
                 HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Listar pedidos de combustible",
+        description = "Devuelve todos los pedidos registrados con sus cantidades, precios, destinos y estados.",
+        security = { @SecurityRequirement(name = "bearerAuth") }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}]"))),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping
     public ResponseEntity<List<FuelOrderResource>> getAllOrders() {
         var orders = fuelOrderQueryService.handle(new GetAllFuelOrdersQuery());
@@ -107,6 +189,22 @@ public class FuelOrdersController {
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Consultar pedido de combustible",
+        description = "Devuelve el pedido identificado con su producto, equipo y fecha programada.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/{orderId}")
     public ResponseEntity<FuelOrderResource> getOrderById(@PathVariable Long orderId) {
         var result = fuelOrderQueryService.handle(new GetFuelOrderByIdQuery(orderId));
@@ -117,6 +215,21 @@ public class FuelOrdersController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @Operation(
+        summary = "Listar pedidos de una empresa",
+        description = "Devuelve los pedidos de la empresa compradora; una lista vacía indica que no tiene pedidos.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/company/{companyId}")
     public ResponseEntity<List<FuelOrderResource>> getOrdersByCompany(@PathVariable Long companyId) {
         var orders = fuelOrderQueryService.handle(new GetFuelOrdersByCompanyIdQuery(companyId));
@@ -127,6 +240,21 @@ public class FuelOrdersController {
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Listar pedidos de un proveedor",
+        description = "Devuelve los pedidos asignados al proveedor indicado.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "providerId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa proveedora.", example = "202")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/provider/{providerId}")
     public ResponseEntity<List<FuelOrderResource>> getOrdersByProvider(@PathVariable Long providerId) {
         var orders = fuelOrderQueryService.handle(new GetFuelOrdersByProviderIdQuery(providerId));
