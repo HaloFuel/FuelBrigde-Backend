@@ -22,6 +22,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+
+/**
+ * Controlador REST para la gestión de pedidos de combustible (Fuel Orders).
+ */
+
 @RestController
 @RequestMapping(value = "/api/v1/fuel-orders", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Fuel Orders", description = "Ordering management endpoints")
