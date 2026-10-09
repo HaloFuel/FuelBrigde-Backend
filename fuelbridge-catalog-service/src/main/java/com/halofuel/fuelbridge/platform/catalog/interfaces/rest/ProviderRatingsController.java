@@ -3,8 +3,8 @@ package com.halofuel.fuelbridge.platform.catalog.interfaces.rest;
 import com.halofuel.fuelbridge.platform.catalog.domain.model.aggregates.ProviderRating;
 import com.halofuel.fuelbridge.platform.catalog.domain.repositories.ProviderRatingRepository;
 import com.halofuel.fuelbridge.platform.catalog.interfaces.rest.resources.ProviderRatingResource;
-import com.halofuel.fuelbridge.platform.iam.domain.repositories.BuyerCompanyRepository;
-import com.halofuel.fuelbridge.platform.iam.domain.repositories.ProviderCompanyRepository;
+import com.halofuel.fuelbridge.platform.catalog.application.outboundservices.CompanyDirectory;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,15 +16,14 @@ import java.util.List;
 public class ProviderRatingsController {
 
     private final ProviderRatingRepository ratingRepository;
-    private final BuyerCompanyRepository buyerCompanyRepository;
-    private final ProviderCompanyRepository providerCompanyRepository;
+    private final CompanyDirectory companyDirectory;
+
 
     public ProviderRatingsController(ProviderRatingRepository ratingRepository,
-                                     BuyerCompanyRepository buyerCompanyRepository,
-                                     ProviderCompanyRepository providerCompanyRepository) {
+                                     CompanyDirectory companyDirectory) {
         this.ratingRepository = ratingRepository;
-        this.buyerCompanyRepository = buyerCompanyRepository;
-        this.providerCompanyRepository = providerCompanyRepository;
+        this.companyDirectory = companyDirectory;
+
     }
 
     @GetMapping
@@ -75,8 +74,8 @@ public class ProviderRatingsController {
                 || resource.rating() == null || resource.rating() < 1 || resource.rating() > 5) {
             return ResponseEntity.badRequest().body("A valid company, provider and rating from 1 to 5 are required");
         }
-        if (buyerCompanyRepository.findById(resource.companyId()).isEmpty()
-                || providerCompanyRepository.findById(resource.providerId()).isEmpty()) {
+        if (!companyDirectory.buyerExists(resource.companyId())
+                || !companyDirectory.providerExists(resource.providerId())) {
             return ResponseEntity.badRequest().body("Buyer company or provider does not exist");
         }
         return null;
