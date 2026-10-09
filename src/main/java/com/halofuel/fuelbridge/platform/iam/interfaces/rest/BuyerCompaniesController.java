@@ -1,5 +1,16 @@
 package com.halofuel.fuelbridge.platform.iam.interfaces.rest;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
 import com.halofuel.fuelbridge.platform.iam.application.commandservices.BuyerCompanyCommandService;
 import com.halofuel.fuelbridge.platform.iam.application.queryservices.BuyerCompanyQueryService;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetAllBuyerCompaniesQuery;
@@ -45,6 +56,22 @@ public class BuyerCompaniesController {
         this.buyerCompanyRepository = buyerCompanyRepository;
     }
 
+    @io.swagger.v3.oas.annotations.security.SecurityRequirements
+    @Operation(
+        summary = "Registrar empresa compradora",
+        description = "Registra una empresa compradora con su RUC, sector y datos de contacto. Este registro es público y no requiere JWT.",
+        security = {},
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para registrar empresa compradora.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.CreateBuyerCompanyResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51987654321\"}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.BuyerCompanyResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":101,\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51987654321\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping
     public ResponseEntity<?> createBuyerCompany(@RequestBody CreateBuyerCompanyResource resource) {
         var command = CreateBuyerCompanyCommandFromResourceAssembler.toCommandFromResource(resource);
@@ -55,6 +82,17 @@ public class BuyerCompaniesController {
                 HttpStatus.CREATED);
     }
 
+    @Operation(
+        summary = "Listar empresas compradoras",
+        description = "Devuelve las empresas compradoras registradas y sus datos de contacto.",
+        security = { @SecurityRequirement(name = "bearerAuth") }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.BuyerCompanyResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":101,\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51987654321\"}]"))),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping
     public ResponseEntity<List<BuyerCompanyResource>> getAllBuyerCompanies() {
         var companies = buyerCompanyQueryService.handle(new GetAllBuyerCompaniesQuery());
@@ -62,6 +100,22 @@ public class BuyerCompaniesController {
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Consultar empresa compradora",
+        description = "Devuelve la empresa compradora identificada.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.BuyerCompanyResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":101,\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51987654321\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/{companyId}")
     public ResponseEntity<BuyerCompanyResource> getBuyerCompanyById(@PathVariable Long companyId) {
         var result = buyerCompanyQueryService.handle(new GetBuyerCompanyByIdQuery(companyId));
@@ -70,6 +124,26 @@ public class BuyerCompaniesController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @Operation(
+        summary = "Actualizar empresa compradora",
+        description = "Reemplaza nombre, RUC, sector, dirección, correo y teléfono de la empresa existente.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para actualizar empresa compradora.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.CreateBuyerCompanyResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51999888777\"}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.BuyerCompanyResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":101,\"name\":\"Constructora Costa Sur SAC\",\"ruc\":\"20609876543\",\"sector\":\"CONSTRUCTION\",\"address\":\"Av. Separadora Industrial 2450, Lima\",\"contactEmail\":\"compras@costasur.example\",\"phone\":\"+51999888777\"}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PutMapping("/{companyId}")
     public ResponseEntity<BuyerCompanyResource> updateBuyerCompany(@PathVariable Long companyId,
                                                                    @RequestBody CreateBuyerCompanyResource resource) {
