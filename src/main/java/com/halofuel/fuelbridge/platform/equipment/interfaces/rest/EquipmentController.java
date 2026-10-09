@@ -1,5 +1,16 @@
 package com.halofuel.fuelbridge.platform.equipment.interfaces.rest;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
 import com.halofuel.fuelbridge.platform.equipment.application.commandservices.EquipmentCommandService;
 import com.halofuel.fuelbridge.platform.equipment.application.queryservices.EquipmentQueryService;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.queries.GetAllEquipmentQuery;
@@ -39,6 +50,26 @@ public class EquipmentController {
         this.equipmentRepository = equipmentRepository;
     }
 
+    @Operation(
+        summary = "Asignar proveedor favorito",
+        description = "Asocia un proveedor favorito al equipo identificado y devuelve el equipo actualizado.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "equipmentId", in = ParameterIn.PATH, required = true, description = "Identificador del equipo.", example = "305")
+        },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para asignar proveedor favorito.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.FavoriteProviderResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"providerId\":202}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping("/{equipmentId}/favorite-provider")
     public ResponseEntity<EquipmentResource> assignFavoriteProvider(
             @PathVariable Long equipmentId, @RequestBody FavoriteProviderResource resource) {
@@ -51,6 +82,22 @@ public class EquipmentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(
+        summary = "Registrar equipo",
+        description = "Registra un equipo de la empresa compradora con su combustible, capacidad de tanque y configuración de recarga.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para registrar equipo.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.CreateEquipmentResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping
     public ResponseEntity<?> createEquipment(@RequestBody CreateEquipmentResource resource) {
         var command = CreateEquipmentCommandFromResourceAssembler.toCommandFromResource(resource);
@@ -61,6 +108,26 @@ public class EquipmentController {
                 HttpStatus.CREATED);
     }
 
+    @Operation(
+        summary = "Actualizar equipo",
+        description = "Actualiza los datos del equipo existente sin cambiar su empresa propietaria.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "equipmentId", in = ParameterIn.PATH, required = true, description = "Identificador del equipo.", example = "305")
+        },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos necesarios para actualizar equipo.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.UpdateEquipmentResource.class),
+                examples = { @ExampleObject(name = "principal", value = "{\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"favoriteProviderId\":202}") }))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":320,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @PostMapping("/{equipmentId}/update")
     public ResponseEntity<?> updateEquipment(@PathVariable Long equipmentId,
                                              @RequestBody UpdateEquipmentResource resource) {
@@ -72,6 +139,17 @@ public class EquipmentController {
                 HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Listar equipos",
+        description = "Devuelve todos los equipos registrados. La lista está vacía cuando no hay equipos.",
+        security = { @SecurityRequirement(name = "bearerAuth") }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}]"))),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping
     public ResponseEntity<List<EquipmentResource>> getAllEquipment() {
         var equipment = equipmentQueryService.handle(new GetAllEquipmentQuery());
@@ -79,6 +157,22 @@ public class EquipmentController {
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
+    @Operation(
+        summary = "Consultar equipo",
+        description = "Devuelve el equipo identificado, incluida su configuración de recarga automática y proveedor favorito.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "equipmentId", in = ParameterIn.PATH, required = true, description = "Identificador del equipo.", example = "305")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/{equipmentId}")
     public ResponseEntity<EquipmentResource> getEquipmentById(@PathVariable Long equipmentId) {
         var result = equipmentQueryService.handle(new GetEquipmentByIdQuery(equipmentId));
@@ -87,6 +181,21 @@ public class EquipmentController {
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
+    @Operation(
+        summary = "Listar equipos de una empresa",
+        description = "Devuelve los equipos de la empresa compradora indicada; devuelve una lista vacía si no tiene equipos.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource.class)), examples = @ExampleObject(name = "respuesta", value = "[{\"id\":305,\"name\":\"Excavadora Caterpillar 320\",\"equipmentType\":\"EXCAVATOR\",\"licensePlate\":\"EQ-320-LIM\",\"fuelType\":\"DIESEL\",\"tankCapacity\":400,\"currentLevel\":80,\"location\":\"Obra Villa El Salvador, Lima\",\"status\":\"ACTIVE\",\"autoRefill\":true,\"refillThreshold\":25,\"lastRefillDate\":\"2026-10-08\",\"companyId\":101,\"favoriteProviderId\":202}]"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Falta un JWT Bearer válido, o el token ha expirado o tiene una firma incorrecta.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Solicitud rechazada por la política de acceso o por un origen CORS no permitido.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content)
+    })
     @GetMapping("/company/{companyId}")
     public ResponseEntity<List<EquipmentResource>> getEquipmentByCompany(@PathVariable Long companyId) {
         var equipment = equipmentQueryService.handle(new GetEquipmentByCompanyIdQuery(companyId));
