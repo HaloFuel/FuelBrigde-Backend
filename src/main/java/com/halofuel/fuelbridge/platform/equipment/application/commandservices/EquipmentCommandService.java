@@ -11,3 +11,4 @@ public interface EquipmentCommandService {
 
     Result<Equipment, ApplicationError> handle(UpdateEquipmentCommand command);
 }
+//
