@@ -8,5 +8,6 @@ import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 
 public interface EquipmentCommandService {
     Result<Equipment, ApplicationError> handle(CreateEquipmentCommand command);
+
     Result<Equipment, ApplicationError> handle(UpdateEquipmentCommand command);
 }
