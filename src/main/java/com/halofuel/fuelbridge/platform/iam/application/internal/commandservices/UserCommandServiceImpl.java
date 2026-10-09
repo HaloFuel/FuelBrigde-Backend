@@ -38,9 +38,11 @@ public class UserCommandServiceImpl implements UserCommandService {
         if (user.isEmpty()) {
             return Result.failure(ApplicationError.notFound("User", command.username()));
         }
+        // Verify against the stored hash; hashing the input again would produce a new salt.
         if (!hashingService.matches(command.password(), user.get().getPassword())) {
             return Result.failure(ApplicationError.validationError("credentials", "Invalid username or password"));
         }
+        // Issue a token only after credential verification succeeds.
         var token = tokenService.generateToken(user.get().getUsername());
         return Result.success(ImmutablePair.of(user.get(), token));
     }
@@ -53,6 +55,8 @@ public class UserCommandServiceImpl implements UserCommandService {
         var requestedRoles = command.roles().isEmpty()
                 ? List.of(Role.getDefaultRole())
                 : command.roles();
+        // Resolve even the default role to a persisted entity so the user does not
+        // reference a transient Role when its associations are saved.
         var roles = requestedRoles.stream()
                 .map(role -> roleRepository.findByName(role.getName()))
                 .toList();
