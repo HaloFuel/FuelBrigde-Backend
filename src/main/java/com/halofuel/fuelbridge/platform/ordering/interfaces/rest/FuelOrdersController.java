@@ -14,7 +14,10 @@ import com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelO
 import com.halofuel.fuelbridge.platform.ordering.interfaces.rest.transform.CreateFuelOrderCommandFromResourceAssembler;
 import com.halofuel.fuelbridge.platform.ordering.interfaces.rest.transform.FuelOrderResourceFromEntityAssembler;
 import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ResponseEntityAssembler;
+
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,11 +25,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
 /**
  * Controlador REST para la gestión de pedidos de combustible (Fuel Orders).
  */
-
 @RestController
 @RequestMapping(value = "/api/v1/fuel-orders", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Fuel Orders", description = "Ordering management endpoints")
@@ -45,6 +46,7 @@ public class FuelOrdersController {
     public ResponseEntity<?> createFuelOrder(@RequestBody CreateFuelOrderResource resource) {
         var command = CreateFuelOrderCommandFromResourceAssembler.toCommandFromResource(resource);
         var result = fuelOrderCommandService.handle(command);
+
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
@@ -54,6 +56,7 @@ public class FuelOrdersController {
     @PostMapping("/{orderId}/confirm")
     public ResponseEntity<?> confirmOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new ConfirmFuelOrderCommand(orderId));
+
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
@@ -63,15 +66,31 @@ public class FuelOrdersController {
     @PostMapping("/{orderId}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new CancelFuelOrderCommand(orderId));
+
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
                 HttpStatus.OK);
     }
 
+    /**
+     * Sprint 1 - US-12: Despacho de pedidos de combustible.
+     *
+     * Procesa la solicitud de despacho de un pedido existente.
+     * El servicio de aplicación se encarga de ejecutar
+     * las reglas de negocio correspondientes.
+     *
+     * @param orderId identificador del pedido de combustible
+     * @return respuesta HTTP con el pedido actualizado
+     */
+    @Operation(
+            summary = "Dispatch a fuel order",
+            description = "US-12: dispatches a pending fuel order and triggers an order notification event."
+    )
     @PostMapping("/{orderId}/dispatch")
     public ResponseEntity<?> dispatchOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new DispatchFuelOrderCommand(orderId));
+
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
@@ -81,29 +100,40 @@ public class FuelOrdersController {
     @GetMapping
     public ResponseEntity<List<FuelOrderResource>> getAllOrders() {
         var orders = fuelOrderQueryService.handle(new GetAllFuelOrdersQuery());
-        var resources = orders.stream().map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity).toList();
+        var resources = orders.stream()
+                .map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity)
+                .toList();
+
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
     @GetMapping("/{orderId}")
     public ResponseEntity<FuelOrderResource> getOrderById(@PathVariable Long orderId) {
         var result = fuelOrderQueryService.handle(new GetFuelOrderByIdQuery(orderId));
+
         return result.map(o -> new ResponseEntity<>(
-                        FuelOrderResourceFromEntityAssembler.toResourceFromEntity(o), HttpStatus.OK))
+                        FuelOrderResourceFromEntityAssembler.toResourceFromEntity(o),
+                        HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @GetMapping("/company/{companyId}")
     public ResponseEntity<List<FuelOrderResource>> getOrdersByCompany(@PathVariable Long companyId) {
         var orders = fuelOrderQueryService.handle(new GetFuelOrdersByCompanyIdQuery(companyId));
-        var resources = orders.stream().map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity).toList();
+        var resources = orders.stream()
+                .map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity)
+                .toList();
+
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 
     @GetMapping("/provider/{providerId}")
     public ResponseEntity<List<FuelOrderResource>> getOrdersByProvider(@PathVariable Long providerId) {
         var orders = fuelOrderQueryService.handle(new GetFuelOrdersByProviderIdQuery(providerId));
-        var resources = orders.stream().map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity).toList();
+        var resources = orders.stream()
+                .map(FuelOrderResourceFromEntityAssembler::toResourceFromEntity)
+                .toList();
+
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 }
