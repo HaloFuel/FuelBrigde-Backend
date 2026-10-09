@@ -18,6 +18,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * BuyerCompaniesController
+ *
+ * REST controller that exposes CRUD endpoints for buyer company management (US-40).
+ * Handles registration, listing, retrieval and update of companies
+ * that request fuel through the FuelBridge platform.
+ *
+ * Base path: /api/v1/buyer-companies
+ */
+
 @RestController
 @RequestMapping(value = "/api/v1/buyer-companies", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Buyer Companies", description = "Buyer company management endpoints")

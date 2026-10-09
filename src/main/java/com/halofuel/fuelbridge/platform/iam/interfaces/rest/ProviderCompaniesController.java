@@ -18,6 +18,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * ProviderCompaniesController
+ *
+ * REST controller that exposes CRUD endpoints for provider company management (US-41).
+ * Handles registration, listing, retrieval and update of fuel supplier companies
+ * operating within the FuelBridge platform.
+ *
+ * Base path: /api/v1/provider-companies
+ */
+
 @RestController
 @RequestMapping(value = "/api/v1/provider-companies", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Provider Companies", description = "Provider company management endpoints")
