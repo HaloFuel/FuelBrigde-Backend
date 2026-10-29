@@ -48,6 +48,17 @@
     <dependencies>
 
         <!-- ======================================= -->
+        <!-- SHARED KERNEL                           -->
+        <!-- ======================================= -->
+
+        <!-- Versioned library (see fuelbridge-shared-kernel/); never copied into service sources -->
+        <dependency>
+            <groupId>com.halofuel</groupId>
+            <artifactId>fuelbridge-shared-kernel</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <!-- ======================================= -->
         <!-- SPRING BOOT                             -->
         <!-- ======================================= -->
 
