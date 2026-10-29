@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.halofuel.fuelbridge.platform.payment.application.commandservices.PaymentCommandService;
 import com.halofuel.fuelbridge.platform.payment.application.queryservices.PaymentQueryService;
 import com.halofuel.fuelbridge.platform.payment.domain.model.commands.CompletePaymentCommand;
+import com.halofuel.fuelbridge.platform.payment.domain.model.commands.FailPaymentCommand;
 import com.halofuel.fuelbridge.platform.payment.domain.model.commands.RefundPaymentCommand;
 import com.halofuel.fuelbridge.platform.payment.domain.model.queries.GetAllPaymentsQuery;
 import com.halofuel.fuelbridge.platform.payment.domain.model.queries.GetPaymentByIdQuery;
@@ -118,11 +119,37 @@ public class PaymentsController {
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
         @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Pago no encontrado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"PAYMENT_NOT_FOUND\",\"message\":\"Pago no encontrado\",\"details\":\"No existe pago con identificador 7101.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El pago no está COMPLETED y por lo tanto no puede reembolsarse.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "El pago no está completado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"PAYMENT_CONFLICT\",\"message\":\"Conflict with Payment\",\"details\":\"Only completed payments can be refunded; current status is PENDING\"}"))),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: reembolsar pago", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: reembolsar pago\",\"details\":\"Ocurrió un error al procesar los datos de pago en FuelBridge.\"}")))
     })
     @PostMapping("/{paymentId}/refund")
     public ResponseEntity<?> refundPayment(@PathVariable Long paymentId) {
         var result = paymentCommandService.handle(new RefundPaymentCommand(paymentId));
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                PaymentResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Marcar pago como fallido",
+        description = "Marca como FAILED un pago que esté PENDING. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "paymentId", in = ParameterIn.PATH, required = true, description = "Identificador del pago.", example = "6101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.payment.interfaces.rest.resources.PaymentResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":6101,\"orderId\":4101,\"companyId\":101,\"amount\":4800,\"status\":\"FAILED\",\"paymentMethod\":\"BANK_TRANSFER\",\"transactionReference\":null,\"paidAt\":null}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
+        @ApiResponse(responseCode = "404", description = "No se encontró el recurso solicitado o una dependencia identificada por la operación.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Pago no encontrado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"PAYMENT_NOT_FOUND\",\"message\":\"Pago no encontrado\",\"details\":\"No existe pago con identificador 7101.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El pago no está en un estado que permita marcarlo como fallido.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "El pago no está pendiente", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"PAYMENT_CONFLICT\",\"message\":\"Conflict with Payment\",\"details\":\"Only pending payments can be marked as failed; current status is COMPLETED\"}"))),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: marcar pago como fallido", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: marcar pago como fallido\",\"details\":\"Ocurrió un error al procesar los datos de pago en FuelBridge.\"}")))
+    })
+    @PostMapping("/{paymentId}/fail")
+    public ResponseEntity<?> failPayment(@PathVariable Long paymentId) {
+        var result = paymentCommandService.handle(new FailPaymentCommand(paymentId));
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
                 PaymentResourceFromEntityAssembler::toResourceFromEntity,
