@@ -27,5 +27,6 @@ public class MySqlSchemaCompatibilityInitializer {
             }
         }
         jdbcTemplate.execute("ALTER TABLE fuel_orders MODIFY COLUMN status VARCHAR(30) NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE notifications MODIFY COLUMN type VARCHAR(40) NOT NULL");
     }
 }
