@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,10 +27,6 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 public class BuyerCompanyDetailSteps {
-
-    // RUC is a unique column and scenarios share the same H2 instance,
-    // so each fixture company needs a fresh 11-digit RUC.
-    private static final AtomicInteger RUC_SEQUENCE = new AtomicInteger();
 
     @Autowired
     private MockMvc mockMvc;
@@ -41,6 +37,9 @@ public class BuyerCompanyDetailSteps {
     @Autowired
     private FuelOrderRepository fuelOrderRepository;
 
+    // static: Cucumber creates a new glue instance per scenario, and ruc is unique in buyer_companies
+    private static final AtomicLong NEXT_RUC = new AtomicLong(20609876543L);
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private BuyerCompany company;
@@ -50,7 +49,7 @@ public class BuyerCompanyDetailSteps {
     @Given("a buyer company exists with name {string}")
     public void aBuyerCompanyExistsWithName(String name) {
         var command = new CreateBuyerCompanyCommand(
-                name, "206%08d".formatted(RUC_SEQUENCE.incrementAndGet()), "CONSTRUCTION",
+                name, String.valueOf(NEXT_RUC.getAndIncrement()), "CONSTRUCTION",
                 "Av. Industrial 123, Lima",
                 "contacto@empresa.example", "+51987654321"
         );
