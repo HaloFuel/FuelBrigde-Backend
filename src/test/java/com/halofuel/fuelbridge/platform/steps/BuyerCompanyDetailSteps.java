@@ -63,7 +63,7 @@ public class BuyerCompanyDetailSteps {
     public void theCompanyHasFuelOrderRegistered(int count) {
         for (int i = 0; i < count; i++) {
             var command = new CreateFuelOrderCommand(
-                    company.getId(), 1L, 1L, null,
+                    company.getId(), 999001L, 1L, null,
                     500.0, "Av. Entrega 456, Lima",
                     LocalDate.now().plusDays(3)
             );
