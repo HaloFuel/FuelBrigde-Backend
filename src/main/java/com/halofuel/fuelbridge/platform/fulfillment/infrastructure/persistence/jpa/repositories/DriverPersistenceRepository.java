@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface DriverPersistenceRepository extends JpaRepository<DriverPersistenceEntity, Long> {
     List<DriverPersistenceEntity> findByProviderId(Long providerId);
+    boolean existsByLicenseNumberIgnoreCase(String licenseNumber);
+    boolean existsByLicenseNumberIgnoreCaseAndIdNot(String licenseNumber, Long id);
 }

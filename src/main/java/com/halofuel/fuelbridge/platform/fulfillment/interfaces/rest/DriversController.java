@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Driver;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.interfaces.rest.resources.DriverResource;
+import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
+import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ErrorResponseAssembler;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -94,12 +96,16 @@ public class DriversController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.fulfillment.interfaces.rest.resources.DriverResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":801,\"providerId\":202,\"firstName\":\"Carlos\",\"lastName\":\"Quispe\",\"licenseNumber\":\"Q45892176\",\"phoneNumber\":\"+51987654321\",\"email\":\"carlos.quispe@andina-combustibles.example\",\"status\":\"AVAILABLE\"}"))),
         @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Solicitud inválida para registrar conductor", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VALIDATION_ERROR\",\"message\":\"Solicitud inválida para registrar conductor\",\"details\":\"El conductor Luis Quispe debe tener una licencia válida y los datos obligatorios completos.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El número de licencia ya está registrado en otro conductor.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Licencia duplicada", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"DRIVER_CONFLICT\",\"message\":\"Conflict with Driver\",\"details\":\"License number Q45892176 is already registered\"}"))),
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: registrar conductor", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: registrar conductor\",\"details\":\"Ocurrió un error al procesar los datos de conductor en FuelBridge.\"}")))
     })
     @PostMapping
-    public ResponseEntity<DriverResource> create(@RequestBody DriverResource resource) {
+    public ResponseEntity<?> create(@RequestBody DriverResource resource) {
+        if (resource.licenseNumber() != null && repository.existsByLicenseNumber(resource.licenseNumber())) {
+            return duplicateLicenseNumber(resource.licenseNumber());
+        }
         var driver = new Driver(resource.providerId(), resource.firstName(), resource.lastName(),
                 resource.licenseNumber(), resource.phoneNumber(), resource.email(),
                 defaultStatus(resource.status()));
@@ -124,12 +130,16 @@ public class DriversController {
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
         @ApiResponse(responseCode = "404", description = "Recurso no encontrado: sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "409", description = "El número de licencia ya está registrado en otro conductor.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Licencia duplicada", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"DRIVER_CONFLICT\",\"message\":\"Conflict with Driver\",\"details\":\"License number Q45892176 is already registered\"}"))),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: actualizar conductor", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: actualizar conductor\",\"details\":\"Ocurrió un error al procesar los datos de conductor en FuelBridge.\"}")))
     })
     @PutMapping("/{id}")
-    public ResponseEntity<DriverResource> update(@PathVariable Long id, @RequestBody DriverResource resource) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody DriverResource resource) {
         var driver = repository.findById(id).orElse(null);
         if (driver == null) return ResponseEntity.notFound().build();
+        if (resource.licenseNumber() != null && repository.existsByLicenseNumberAndIdNot(resource.licenseNumber(), id)) {
+            return duplicateLicenseNumber(resource.licenseNumber());
+        }
         driver.update(resource.providerId() != null ? resource.providerId() : driver.getProviderId(),
                 resource.firstName(), resource.lastName(), resource.licenseNumber(),
                 resource.phoneNumber(), resource.email(), defaultStatus(resource.status()));
@@ -157,6 +167,11 @@ public class DriversController {
         if (repository.findById(id).isEmpty()) return ResponseEntity.notFound().build();
         repository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private static ResponseEntity<?> duplicateLicenseNumber(String licenseNumber) {
+        return ErrorResponseAssembler.toErrorResponseFromApplicationError(
+                ApplicationError.conflict("Driver", "License number %s is already registered".formatted(licenseNumber)));
     }
 
     private static String defaultStatus(String status) {

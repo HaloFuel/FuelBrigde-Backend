@@ -30,6 +30,16 @@ public class DriverRepositoryImpl implements DriverRepository {
     }
 
     @Override
+    public boolean existsByLicenseNumber(String licenseNumber) {
+        return persistenceRepository.existsByLicenseNumberIgnoreCase(licenseNumber);
+    }
+
+    @Override
+    public boolean existsByLicenseNumberAndIdNot(String licenseNumber, Long id) {
+        return persistenceRepository.existsByLicenseNumberIgnoreCaseAndIdNot(licenseNumber, id);
+    }
+
+    @Override
     public Driver save(Driver driver) {
         return DriverPersistenceAssembler.toDomain(
                 persistenceRepository.save(DriverPersistenceAssembler.toPersistence(driver)));
