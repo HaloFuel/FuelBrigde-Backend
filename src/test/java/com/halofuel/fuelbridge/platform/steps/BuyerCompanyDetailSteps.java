@@ -15,18 +15,17 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
-@Component
 public class BuyerCompanyDetailSteps {
 
     @Autowired
@@ -38,6 +37,9 @@ public class BuyerCompanyDetailSteps {
     @Autowired
     private FuelOrderRepository fuelOrderRepository;
 
+    // static: Cucumber creates a new glue instance per scenario, and ruc is unique in buyer_companies
+    private static final AtomicLong NEXT_RUC = new AtomicLong(20609876543L);
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private BuyerCompany company;
@@ -47,7 +49,7 @@ public class BuyerCompanyDetailSteps {
     @Given("a buyer company exists with name {string}")
     public void aBuyerCompanyExistsWithName(String name) {
         var command = new CreateBuyerCompanyCommand(
-                name, "20609876543", "CONSTRUCTION",
+                name, String.valueOf(NEXT_RUC.getAndIncrement()), "CONSTRUCTION",
                 "Av. Industrial 123, Lima",
                 "contacto@empresa.example", "+51987654321"
         );
