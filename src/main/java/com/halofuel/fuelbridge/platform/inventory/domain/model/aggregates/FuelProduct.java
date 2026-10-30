@@ -1,3 +1,4 @@
+
 package com.halofuel.fuelbridge.platform.inventory.domain.model.aggregates;
 
 import com.halofuel.fuelbridge.platform.inventory.domain.model.commands.CreateFuelProductCommand;
@@ -21,6 +22,7 @@ public class FuelProduct extends AbstractDomainAggregateRoot<FuelProduct> {
     private Double availableStock;
     private Double capacity;
     private Long providerId;
+
     /** Whether the product is published to the buyer catalog. Inactive products are hidden/blocked. */
     private Boolean active = true;
 
@@ -29,13 +31,19 @@ public class FuelProduct extends AbstractDomainAggregateRoot<FuelProduct> {
         this.fuelType = command.fuelType();
         this.pricePerUnit = command.pricePerUnit();
         this.unit = command.unit();
-        this.availableStock = command.availableStock();
+        this.updateStock(command.availableStock());
         this.capacity = command.capacity();
         this.providerId = command.providerId();
         this.active = command.active() == null || command.active();
     }
 
     public void updateStock(Double newStock) {
+        if (newStock == null || !Double.isFinite(newStock) || newStock < 0) {
+            throw new IllegalArgumentException(
+                    "El stock debe ser un número válido mayor o igual a cero."
+            );
+        }
+
         this.availableStock = newStock;
     }
 
@@ -44,11 +52,11 @@ public class FuelProduct extends AbstractDomainAggregateRoot<FuelProduct> {
         this.fuelType = command.fuelType();
         this.pricePerUnit = command.pricePerUnit();
         this.unit = command.unit();
-        this.availableStock = command.availableStock();
+        this.updateStock(command.availableStock());
         this.capacity = command.capacity();
+
         if (command.active() != null) {
             this.active = command.active();
         }
     }
 }
-
