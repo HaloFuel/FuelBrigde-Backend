@@ -15,7 +15,6 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -26,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
-@Component
 public class BuyerCompanyDetailSteps {
 
     @Autowired
