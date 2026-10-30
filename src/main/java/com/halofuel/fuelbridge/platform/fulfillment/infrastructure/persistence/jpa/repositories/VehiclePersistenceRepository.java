@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface VehiclePersistenceRepository extends JpaRepository<VehiclePersistenceEntity, Long> {
     List<VehiclePersistenceEntity> findByProviderId(Long providerId);
+    boolean existsByLicensePlateIgnoreCase(String licensePlate);
+    boolean existsByLicensePlateIgnoreCaseAndIdNot(String licensePlate, Long id);
 }

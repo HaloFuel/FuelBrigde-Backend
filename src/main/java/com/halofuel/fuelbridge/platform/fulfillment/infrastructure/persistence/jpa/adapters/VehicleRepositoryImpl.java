@@ -30,6 +30,16 @@ public class VehicleRepositoryImpl implements VehicleRepository {
     }
 
     @Override
+    public boolean existsByLicensePlate(String licensePlate) {
+        return persistenceRepository.existsByLicensePlateIgnoreCase(licensePlate);
+    }
+
+    @Override
+    public boolean existsByLicensePlateAndIdNot(String licensePlate, Long id) {
+        return persistenceRepository.existsByLicensePlateIgnoreCaseAndIdNot(licensePlate, id);
+    }
+
+    @Override
     public Vehicle save(Vehicle vehicle) {
         return VehiclePersistenceAssembler.toDomain(
                 persistenceRepository.save(VehiclePersistenceAssembler.toPersistence(vehicle)));
