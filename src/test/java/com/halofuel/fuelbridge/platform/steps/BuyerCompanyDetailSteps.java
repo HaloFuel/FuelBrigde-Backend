@@ -15,19 +15,22 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
-@Component
 public class BuyerCompanyDetailSteps {
+
+    // RUC is a unique column and scenarios share the same H2 instance,
+    // so each fixture company needs a fresh 11-digit RUC.
+    private static final AtomicInteger RUC_SEQUENCE = new AtomicInteger();
 
     @Autowired
     private MockMvc mockMvc;
@@ -47,7 +50,7 @@ public class BuyerCompanyDetailSteps {
     @Given("a buyer company exists with name {string}")
     public void aBuyerCompanyExistsWithName(String name) {
         var command = new CreateBuyerCompanyCommand(
-                name, "20609876543", "CONSTRUCTION",
+                name, "206%08d".formatted(RUC_SEQUENCE.incrementAndGet()), "CONSTRUCTION",
                 "Av. Industrial 123, Lima",
                 "contacto@empresa.example", "+51987654321"
         );
