@@ -8,6 +8,8 @@ import java.util.Optional;
 public interface VehicleRepository {
     Optional<Vehicle> findById(Long id);
     List<Vehicle> findByProviderId(Long providerId);
+    boolean existsByLicensePlate(String licensePlate);
+    boolean existsByLicensePlateAndIdNot(String licensePlate, Long id);
     Vehicle save(Vehicle vehicle);
     void deleteById(Long id);
 }

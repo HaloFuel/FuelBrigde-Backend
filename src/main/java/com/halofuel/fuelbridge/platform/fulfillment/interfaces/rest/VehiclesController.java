@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Vehicle;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.interfaces.rest.resources.VehicleResource;
+import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
+import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ErrorResponseAssembler;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -94,12 +96,16 @@ public class VehiclesController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Registro creado correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.fulfillment.interfaces.rest.resources.VehicleResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":901,\"providerId\":202,\"licensePlate\":\"BFG-482\",\"brand\":\"Volvo\",\"model\":\"FM 460 Cisterna\",\"capacity\":12000,\"unit\":\"L\",\"status\":\"AVAILABLE\"}"))),
         @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Solicitud inválida para registrar vehículo", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VALIDATION_ERROR\",\"message\":\"Solicitud inválida para registrar vehículo\",\"details\":\"La cisterna de placa B7T-842 debe indicar una capacidad mayor que cero.\"}"))),
+        @ApiResponse(responseCode = "409", description = "La placa ya está registrada en otro vehículo.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Placa duplicada", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VEHICLE_CONFLICT\",\"message\":\"Conflict with Vehicle\",\"details\":\"License plate BFG-482 is already registered\"}"))),
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: registrar vehículo", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: registrar vehículo\",\"details\":\"Ocurrió un error al procesar los datos de vehículo cisterna en FuelBridge.\"}")))
     })
     @PostMapping
-    public ResponseEntity<VehicleResource> create(@RequestBody VehicleResource resource) {
+    public ResponseEntity<?> create(@RequestBody VehicleResource resource) {
+        if (resource.licensePlate() != null && repository.existsByLicensePlate(resource.licensePlate())) {
+            return duplicateLicensePlate(resource.licensePlate());
+        }
         var vehicle = new Vehicle(resource.providerId(), resource.licensePlate(), resource.brand(),
                 resource.model(), resource.capacity(), defaultUnit(resource.unit()),
                 defaultStatus(resource.status()));
@@ -124,12 +130,16 @@ public class VehiclesController {
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
         @ApiResponse(responseCode = "404", description = "Recurso no encontrado: sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "409", description = "La placa ya está registrada en otro vehículo.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Placa duplicada", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VEHICLE_CONFLICT\",\"message\":\"Conflict with Vehicle\",\"details\":\"License plate BFG-482 is already registered\"}"))),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: actualizar vehículo", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: actualizar vehículo\",\"details\":\"Ocurrió un error al procesar los datos de vehículo cisterna en FuelBridge.\"}")))
     })
     @PutMapping("/{id}")
-    public ResponseEntity<VehicleResource> update(@PathVariable Long id, @RequestBody VehicleResource resource) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody VehicleResource resource) {
         var vehicle = repository.findById(id).orElse(null);
         if (vehicle == null) return ResponseEntity.notFound().build();
+        if (resource.licensePlate() != null && repository.existsByLicensePlateAndIdNot(resource.licensePlate(), id)) {
+            return duplicateLicensePlate(resource.licensePlate());
+        }
         vehicle.update(resource.providerId() != null ? resource.providerId() : vehicle.getProviderId(),
                 resource.licensePlate(), resource.brand(), resource.model(), resource.capacity(),
                 defaultUnit(resource.unit()), defaultStatus(resource.status()));
@@ -157,6 +167,11 @@ public class VehiclesController {
         if (repository.findById(id).isEmpty()) return ResponseEntity.notFound().build();
         repository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private static ResponseEntity<?> duplicateLicensePlate(String licensePlate) {
+        return ErrorResponseAssembler.toErrorResponseFromApplicationError(
+                ApplicationError.conflict("Vehicle", "License plate %s is already registered".formatted(licensePlate)));
     }
 
     private static String defaultUnit(String unit) {
