@@ -182,4 +182,24 @@ public class EquipmentServiceGateway {
                                               HttpServletRequest request) {
         return client.forward(HttpMethod.POST, BASE + "/" + equipmentId + "/fuel-receipts", new LinkedMultiValueMap<>(), body, request);
     }
+
+    @Operation(
+        summary = "Eliminar equipo",
+        description = "Reenvía al microservicio Equipment la eliminación del equipo identificado.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "equipmentId", in = ParameterIn.PATH, required = true, description = "Identificador del equipo.", example = "305")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Equipo eliminado; sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No existe el equipo indicado.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado.", content = @Content),
+        @ApiResponse(responseCode = "502", description = "El microservicio Equipment no está disponible.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "servicioNoDisponible", value = "{\"message\":\"Standalone service unavailable\"}"))),
+        @ApiResponse(responseCode = "default", description = "Otro código transmitido por el microservicio; se conserva su cuerpo y tipo de contenido.", content = @Content)
+    })
+    @DeleteMapping("/{equipmentId}")
+    public ResponseEntity<byte[]> delete(@PathVariable Long equipmentId, HttpServletRequest request) {
+        return client.forward(HttpMethod.DELETE, BASE + "/" + equipmentId, new LinkedMultiValueMap<>(), null, request);
+    }
 }

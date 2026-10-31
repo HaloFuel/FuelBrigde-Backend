@@ -75,6 +75,26 @@ public class FuelRequestsController {
     }
 
     @Operation(
+        summary = "Consultar solicitud de combustible",
+        description = "Devuelve el detalle de la solicitud identificada: comprador, proveedor, producto, cantidad, precio unitario, entrega, estado y motivo de rechazo si existe.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "requestId", in = ParameterIn.PATH, required = true, description = "Identificador de la solicitud de combustible.", example = "5101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Solicitud encontrada.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelRequestResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":5101,\"buyerCompanyId\":101,\"providerId\":202,\"equipmentId\":305,\"fuelProductId\":303,\"fuelType\":\"DIESEL\",\"productName\":\"Diesel B5 S-50\",\"quantity\":1000,\"unit\":\"L\",\"unitPrice\":4.8,\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"deliveryDate\":\"2026-10-15\",\"status\":\"PENDING\",\"source\":\"MANUAL\",\"rejectionReason\":null,\"createdAt\":\"2026-10-09T14:30:00.000Z\",\"updatedAt\":\"2026-10-09T14:30:00.000Z\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No existe una solicitud con el identificador indicado: 404 sin cuerpo de respuesta.", content = @Content)
+    })
+    @GetMapping("/{requestId}")
+    public ResponseEntity<FuelRequestResource> findById(@PathVariable Long requestId) {
+        return service.findById(requestId)
+                .map(request -> ResponseEntity.ok(toResource(request)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @Operation(
         summary = "Aceptar solicitud de combustible",
         description = "Acepta una solicitud PENDING, crea un pedido con el precio vigente del producto y marca la solicitud como APPROVED. Devuelve el pedido creado. No requiere cuerpo.",
         security = { @SecurityRequirement(name = "bearerAuth") },
