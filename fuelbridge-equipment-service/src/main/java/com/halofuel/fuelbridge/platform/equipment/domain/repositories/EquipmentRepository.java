@@ -11,4 +11,5 @@ public interface EquipmentRepository {
     List<Equipment> findByCompanyId(Long companyId);
     Equipment save(Equipment equipment);
     boolean existsById(Long id);
+    void deleteById(Long id);
 }

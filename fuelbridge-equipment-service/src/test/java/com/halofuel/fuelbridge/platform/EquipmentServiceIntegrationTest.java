@@ -130,6 +130,20 @@ class EquipmentServiceIntegrationTest {
     }
 
     @Test
+    void deletesEquipmentAndReturnsNotFoundForUnknownIds() {
+        var client = client(tokens.generateToken("buyer"));
+        var created = create(client, "Generador Cummins", 101);
+
+        var deleted = client.delete().uri("/api/v1/equipment/{id}", id(created)).retrieve().toBodilessEntity();
+        assertEquals(HttpStatus.NO_CONTENT, deleted.getStatusCode());
+        assertEquals(0, repository.count());
+
+        var again = assertThrows(RestClientResponseException.class, () -> client.delete()
+                .uri("/api/v1/equipment/{id}", id(created)).retrieve().toBodilessEntity());
+        assertEquals(HttpStatus.NOT_FOUND, again.getStatusCode());
+    }
+
+    @Test
     void rejectsMissingMalformedExpiredAndWrongSignatureJwt() {
         var expired = Jwts.builder().subject("buyer").expiration(new Date(System.currentTimeMillis() - 60000))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();

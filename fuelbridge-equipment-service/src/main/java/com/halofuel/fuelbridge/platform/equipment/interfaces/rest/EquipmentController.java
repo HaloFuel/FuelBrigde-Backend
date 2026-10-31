@@ -19,6 +19,7 @@ import com.halofuel.fuelbridge.platform.equipment.domain.model.queries.GetEquipm
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.CreateEquipmentResource;
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.EquipmentResource;
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.FavoriteProviderResource;
+import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.DeleteEquipmentCommand;
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.ReceiveFuelResource;
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.transform.ReceiveFuelCommandFromResourceAssembler;
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.resources.UpdateEquipmentResource;
@@ -231,5 +232,27 @@ public class EquipmentController {
                 result,
                 EquipmentResourceFromEntityAssembler::toResourceFromEntity,
                 HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Eliminar equipo",
+        description = "Elimina el equipo identificado. Los pedidos que lo referencian conservan su equipmentId como dato histórico.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "equipmentId", in = ParameterIn.PATH, required = true, description = "Identificador del equipo.", example = "305")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Equipo eliminado; sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No existe el equipo indicado.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "equipoNoEncontrado", description = "Estructura ErrorResource (code, message, details).", value = "{\"code\":\"EQUIPMENT_NOT_FOUND\",\"message\":\"Equipment not found: 305\",\"details\":null}")))
+    })
+    @DeleteMapping("/{equipmentId}")
+    public ResponseEntity<?> deleteEquipment(@PathVariable Long equipmentId) {
+        var result = equipmentCommandService.handle(new DeleteEquipmentCommand(equipmentId));
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                ignored -> null,
+                HttpStatus.NO_CONTENT);
     }
 }

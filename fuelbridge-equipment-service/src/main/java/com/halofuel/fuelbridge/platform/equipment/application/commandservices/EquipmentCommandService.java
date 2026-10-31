@@ -2,6 +2,7 @@ package com.halofuel.fuelbridge.platform.equipment.application.commandservices;
 
 import com.halofuel.fuelbridge.platform.equipment.domain.model.aggregates.Equipment;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.CreateEquipmentCommand;
+import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.DeleteEquipmentCommand;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.ReceiveFuelCommand;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.UpdateEquipmentCommand;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
@@ -13,5 +14,6 @@ public interface EquipmentCommandService {
     Result<Equipment, ApplicationError> handle(UpdateEquipmentCommand command);
 
     Result<Equipment, ApplicationError> handle(ReceiveFuelCommand command);
+    Result<Long, ApplicationError> handle(DeleteEquipmentCommand command);
 }
 //

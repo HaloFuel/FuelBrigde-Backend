@@ -3,6 +3,7 @@ package com.halofuel.fuelbridge.platform.equipment.application.internal.commands
 import com.halofuel.fuelbridge.platform.equipment.application.commandservices.EquipmentCommandService;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.aggregates.Equipment;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.CreateEquipmentCommand;
+import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.DeleteEquipmentCommand;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.ReceiveFuelCommand;
 import com.halofuel.fuelbridge.platform.equipment.domain.model.commands.UpdateEquipmentCommand;
 import com.halofuel.fuelbridge.platform.equipment.domain.repositories.EquipmentRepository;
@@ -52,5 +53,14 @@ public class EquipmentCommandServiceImpl implements EquipmentCommandService {
         var equipment = existing.get();
         equipment.receiveFuel(quantity);
         return Result.success(equipmentRepository.save(equipment));
+    }
+
+    @Override
+    public Result<Long, ApplicationError> handle(DeleteEquipmentCommand command) {
+        if (!equipmentRepository.existsById(command.equipmentId())) {
+            return Result.failure(ApplicationError.notFound("Equipment", command.equipmentId().toString()));
+        }
+        equipmentRepository.deleteById(command.equipmentId());
+        return Result.success(command.equipmentId());
     }
 }
