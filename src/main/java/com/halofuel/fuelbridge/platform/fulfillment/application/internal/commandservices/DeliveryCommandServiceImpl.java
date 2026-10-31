@@ -1,7 +1,8 @@
 package com.halofuel.fuelbridge.platform.fulfillment.application.internal.commandservices;
 
-import com.halofuel.fuelbridge.platform.equipment.domain.repositories.EquipmentRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.application.commandservices.DeliveryCommandService;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts.FuelReceiptOutcome;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Delivery;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CompleteDeliveryCommand;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CreateDeliveryCommand;
@@ -25,20 +26,20 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
     private final VehicleRepository vehicleRepository;
     private final FuelOrderRepository orderRepository;
     private final FuelProductRepository productRepository;
-    private final EquipmentRepository equipmentRepository;
+    private final EquipmentFuelReceipts equipmentFuelReceipts;
 
     public DeliveryCommandServiceImpl(DeliveryRepository deliveryRepository,
                                       DriverRepository driverRepository,
                                       VehicleRepository vehicleRepository,
                                       FuelOrderRepository orderRepository,
                                       FuelProductRepository productRepository,
-                                      EquipmentRepository equipmentRepository) {
+                                      EquipmentFuelReceipts equipmentFuelReceipts) {
         this.deliveryRepository = deliveryRepository;
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
-        this.equipmentRepository = equipmentRepository;
+        this.equipmentFuelReceipts = equipmentFuelReceipts;
     }
 
     @Override
@@ -108,6 +109,18 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
         if (order.isEmpty()) {
             return Result.failure(ApplicationError.notFound("FuelOrder", delivery.getOrderId().toString()));
         }
+        // Validates the order state before any remote call; nothing is persisted yet.
+        order.get().receive();
+        // Equipment is a standalone service: register the fuel receipt before saving local changes,
+        // so an unavailable service leaves the delivery, order, driver and vehicle untouched.
+        if (order.get().getEquipmentId() != null) {
+            var outcome = equipmentFuelReceipts.register(order.get().getEquipmentId(),
+                    order.get().getRequestedQuantity());
+            if (outcome == FuelReceiptOutcome.UNAVAILABLE) {
+                return Result.failure(ApplicationError.unexpected("Equipment service",
+                        "The fuel receipt could not be registered; the delivery was not completed"));
+            }
+        }
         driverRepository.findById(delivery.getDriverId()).ifPresent(driver -> {
             driver.setStatus("AVAILABLE");
             driverRepository.save(driver);
@@ -116,13 +129,6 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
             vehicle.setStatus("AVAILABLE");
             vehicleRepository.save(vehicle);
         });
-        if (order.get().getEquipmentId() != null) {
-            equipmentRepository.findById(order.get().getEquipmentId()).ifPresent(equipment -> {
-                equipment.receiveFuel(order.get().getRequestedQuantity());
-                equipmentRepository.save(equipment);
-            });
-        }
-        order.get().receive();
         orderRepository.save(order.get());
         delivery.complete();
         return Result.success(deliveryRepository.save(delivery));
