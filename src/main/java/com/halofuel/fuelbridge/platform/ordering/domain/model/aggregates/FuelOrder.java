@@ -42,6 +42,7 @@ public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
     }
 
     public void confirm() {
+        if (status != OrderStatus.PENDING) throw new IllegalStateException("Order is not pending confirmation");
         this.status = OrderStatus.CONFIRMED;
         registerDomainEvent(new FuelOrderConfirmedEvent(this.id, this.companyId));
     }
