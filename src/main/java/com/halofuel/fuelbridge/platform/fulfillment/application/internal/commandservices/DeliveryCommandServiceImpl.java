@@ -1,7 +1,10 @@
 package com.halofuel.fuelbridge.platform.fulfillment.application.internal.commandservices;
 
-import com.halofuel.fuelbridge.platform.equipment.domain.repositories.EquipmentRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.application.commandservices.DeliveryCommandService;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts.FuelReceiptOutcome;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.InventoryStock;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.InventoryStock.StockReservationOutcome;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Delivery;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CompleteDeliveryCommand;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CreateDeliveryCommand;
@@ -10,12 +13,13 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.FailDe
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DeliveryRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
-import com.halofuel.fuelbridge.platform.inventory.domain.repositories.FuelProductRepository;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class DeliveryCommandServiceImpl implements DeliveryCommandService {
@@ -24,21 +28,21 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final FuelOrderRepository orderRepository;
-    private final FuelProductRepository productRepository;
-    private final EquipmentRepository equipmentRepository;
+    private final InventoryStock inventoryStock;
+    private final EquipmentFuelReceipts equipmentFuelReceipts;
 
     public DeliveryCommandServiceImpl(DeliveryRepository deliveryRepository,
                                       DriverRepository driverRepository,
                                       VehicleRepository vehicleRepository,
                                       FuelOrderRepository orderRepository,
-                                      FuelProductRepository productRepository,
-                                      EquipmentRepository equipmentRepository) {
+                                      InventoryStock inventoryStock,
+                                      EquipmentFuelReceipts equipmentFuelReceipts) {
         this.deliveryRepository = deliveryRepository;
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
         this.orderRepository = orderRepository;
-        this.productRepository = productRepository;
-        this.equipmentRepository = equipmentRepository;
+        this.inventoryStock = inventoryStock;
+        this.equipmentFuelReceipts = equipmentFuelReceipts;
     }
 
     @Override
@@ -64,25 +68,56 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
         if (vehicle.get().getCapacity() < order.get().getRequestedQuantity()) {
             return Result.failure(ApplicationError.conflict("Delivery", "Vehicle capacity is insufficient"));
         }
-        var product = productRepository.findById(order.get().getFuelProductId());
-        if (product.isEmpty() || product.get().getAvailableStock() < order.get().getRequestedQuantity()) {
-            return Result.failure(ApplicationError.conflict("Delivery", "Insufficient inventory stock"));
-        }
         if (deliveryRepository.findByOrderId(command.orderId()).isPresent()) {
             return Result.failure(ApplicationError.conflict("Delivery",
                     "A delivery already exists for order " + command.orderId()));
         }
-        driver.get().setStatus("ASSIGNED");
-        vehicle.get().setStatus("IN_ROUTE");
-        product.get().updateStock(product.get().getAvailableStock() - order.get().getRequestedQuantity());
+        // Validates the order state in memory before touching the Inventory service.
         order.get().dispatch();
-        driverRepository.save(driver.get());
-        vehicleRepository.save(vehicle.get());
-        productRepository.save(product.get());
-        orderRepository.save(order.get());
-        var delivery = new Delivery(command);
-        delivery.dispatch();
-        return Result.success(deliveryRepository.save(delivery));
+        // Inventory is a standalone service: the stock is reserved only after every local rule passed.
+        var fuelProductId = order.get().getFuelProductId();
+        var quantity = order.get().getRequestedQuantity();
+        var reservation = inventoryStock.reserve(fuelProductId, quantity);
+        if (reservation == StockReservationOutcome.INSUFFICIENT_STOCK
+                || reservation == StockReservationOutcome.PRODUCT_NOT_FOUND) {
+            return Result.failure(ApplicationError.conflict("Delivery", "Insufficient inventory stock"));
+        }
+        if (reservation == StockReservationOutcome.UNAVAILABLE) {
+            return Result.failure(ApplicationError.unexpected("Inventory service",
+                    "The stock could not be reserved; the delivery was not scheduled"));
+        }
+        // Compensation: if the local transaction does not commit, the reserved stock is released.
+        var compensatedByTransaction = registerStockCompensation(fuelProductId, quantity);
+        try {
+            driver.get().setStatus("ASSIGNED");
+            vehicle.get().setStatus("IN_ROUTE");
+            driverRepository.save(driver.get());
+            vehicleRepository.save(vehicle.get());
+            orderRepository.save(order.get());
+            var delivery = new Delivery(command);
+            delivery.dispatch();
+            return Result.success(deliveryRepository.save(delivery));
+        } catch (RuntimeException ex) {
+            if (!compensatedByTransaction) {
+                inventoryStock.release(fuelProductId, quantity);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean registerStockCompensation(Long fuelProductId, Double quantity) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    inventoryStock.release(fuelProductId, quantity);
+                }
+            }
+        });
+        return true;
     }
 
     @Override
@@ -108,6 +143,18 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
         if (order.isEmpty()) {
             return Result.failure(ApplicationError.notFound("FuelOrder", delivery.getOrderId().toString()));
         }
+        // Validates the order state before any remote call; nothing is persisted yet.
+        order.get().receive();
+        // Equipment is a standalone service: register the fuel receipt before saving local changes,
+        // so an unavailable service leaves the delivery, order, driver and vehicle untouched.
+        if (order.get().getEquipmentId() != null) {
+            var outcome = equipmentFuelReceipts.register(order.get().getEquipmentId(),
+                    order.get().getRequestedQuantity());
+            if (outcome == FuelReceiptOutcome.UNAVAILABLE) {
+                return Result.failure(ApplicationError.unexpected("Equipment service",
+                        "The fuel receipt could not be registered; the delivery was not completed"));
+            }
+        }
         driverRepository.findById(delivery.getDriverId()).ifPresent(driver -> {
             driver.setStatus("AVAILABLE");
             driverRepository.save(driver);
@@ -116,13 +163,6 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
             vehicle.setStatus("AVAILABLE");
             vehicleRepository.save(vehicle);
         });
-        if (order.get().getEquipmentId() != null) {
-            equipmentRepository.findById(order.get().getEquipmentId()).ifPresent(equipment -> {
-                equipment.receiveFuel(order.get().getRequestedQuantity());
-                equipmentRepository.save(equipment);
-            });
-        }
-        order.get().receive();
         orderRepository.save(order.get());
         delivery.complete();
         return Result.success(deliveryRepository.save(delivery));

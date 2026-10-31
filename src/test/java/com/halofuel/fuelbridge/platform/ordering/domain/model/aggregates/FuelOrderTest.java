@@ -59,6 +59,19 @@ class FuelOrderTest {
     }
 
     @Test
+    void confirmFailsWhenTheOrderIsNotPending() {
+        // Arrange
+        var order = newPendingOrder();
+        order.cancel();
+
+        // Act + Assert
+        assertThatThrownBy(order::confirm)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Order is not pending confirmation");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
     void cancelMovesTheOrderToCancelled() {
         // Arrange
         var order = newPendingOrder();

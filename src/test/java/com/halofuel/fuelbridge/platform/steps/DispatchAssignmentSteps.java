@@ -7,10 +7,6 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.Create
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DeliveryRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
-import com.halofuel.fuelbridge.platform.inventory.domain.model.aggregates.FuelProduct;
-import com.halofuel.fuelbridge.platform.inventory.domain.model.commands.CreateFuelProductCommand;
-import com.halofuel.fuelbridge.platform.inventory.domain.model.valueobjects.FuelType;
-import com.halofuel.fuelbridge.platform.inventory.domain.repositories.FuelProductRepository;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
@@ -48,7 +44,7 @@ public class DispatchAssignmentSteps {
     private VehicleRepository vehicleRepository;
 
     @Autowired
-    private FuelProductRepository fuelProductRepository;
+    private InventoryHttpStub inventoryService;
 
     @Autowired
     private FuelOrderRepository fuelOrderRepository;
@@ -58,7 +54,7 @@ public class DispatchAssignmentSteps {
 
     private Driver driver;
     private Vehicle vehicle;
-    private FuelProduct product;
+    private Long productId;
     private FuelOrder order;
     private MvcResult response;
 
@@ -83,16 +79,15 @@ public class DispatchAssignmentSteps {
     @Given("a pending fuel order for provider {int} requesting {double} units")
     public void aPendingFuelOrderRequestingUnits(int providerId, double quantity) {
         ensureProduct();
-        var command = new CreateFuelOrderCommand(101L, (long) providerId, product.getId(), null,
+        var command = new CreateFuelOrderCommand(101L, (long) providerId, productId, null,
                 quantity, "Obra - Av. Test 123", LocalDate.now().plusDays(2));
-        order = fuelOrderRepository.save(new FuelOrder(command, quantity * product.getPricePerUnit()));
+        order = fuelOrderRepository.save(new FuelOrder(command, quantity * 16.0));
     }
 
     @Given("the fuel product has {double} units of available stock")
     public void theFuelProductHasUnitsOfAvailableStock(double stock) {
         ensureProduct();
-        product.updateStock(stock);
-        product = fuelProductRepository.save(product);
+        inventoryService.setStock(productId, stock);
     }
 
     @Given("that order already has a scheduled delivery")
@@ -109,12 +104,11 @@ public class DispatchAssignmentSteps {
     }
 
     private void ensureProduct() {
-        if (product != null) {
+        if (productId != null) {
             return;
         }
-        var command = new CreateFuelProductCommand("Diesel B5", FuelType.DIESEL, 16.0, "GAL",
-                10000.0, 20000.0, 202L, true);
-        product = fuelProductRepository.save(new FuelProduct(command));
+        // Inventory is a standalone service; the scenario uses its HTTP stand-in.
+        productId = inventoryService.addProduct("Diesel B5", 16.0, 10000.0, 202L);
     }
 
     @When("the provider schedules a delivery assigning that driver and vehicle")
@@ -157,7 +151,6 @@ public class DispatchAssignmentSteps {
 
     @Then("the available stock should be {double} units")
     public void theAvailableStockShouldBeUnits(double expectedStock) {
-        var updated = fuelProductRepository.findById(product.getId()).orElseThrow();
-        assertEquals(expectedStock, updated.getAvailableStock());
+        assertEquals(expectedStock, inventoryService.stockOf(productId));
     }
 }
