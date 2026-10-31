@@ -1,6 +1,6 @@
 package com.halofuel.fuelbridge.platform.ordering.application.internal.commandservices;
 
-import com.halofuel.fuelbridge.platform.inventory.application.queryservices.FuelProductQueryService;
+import com.halofuel.fuelbridge.platform.ordering.application.outboundservices.FuelProductCatalog;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
@@ -27,7 +27,7 @@ class FuelOrderCommandServiceImplTest {
         repository = mock(FuelOrderRepository.class);
         service = new FuelOrderCommandServiceImpl(
                 repository,
-                mock(FuelProductQueryService.class)
+                mock(FuelProductCatalog.class)
         );
     }
 

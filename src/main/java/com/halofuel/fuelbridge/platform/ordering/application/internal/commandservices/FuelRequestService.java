@@ -1,6 +1,6 @@
 package com.halofuel.fuelbridge.platform.ordering.application.internal.commandservices;
 
-import com.halofuel.fuelbridge.platform.inventory.domain.repositories.FuelProductRepository;
+import com.halofuel.fuelbridge.platform.ordering.application.outboundservices.FuelProductCatalog;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.RequestStatus;
@@ -16,11 +16,11 @@ import java.util.List;
 @Service
 public class FuelRequestService {
     private final FuelRequestPersistenceRepository requests;
-    private final FuelProductRepository products;
+    private final FuelProductCatalog products;
     private final FuelOrderRepository orders;
 
     public FuelRequestService(FuelRequestPersistenceRepository requests,
-                              FuelProductRepository products,
+                              FuelProductCatalog products,
                               FuelOrderRepository orders) {
         this.requests = requests;
         this.products = products;
@@ -31,7 +31,7 @@ public class FuelRequestService {
     public FuelRequestPersistenceEntity create(CreateFuelRequestResource resource) {
         var product = products.findById(resource.fuelProductId())
                 .orElseThrow(() -> new IllegalArgumentException("Fuel product not found"));
-        if (!product.getProviderId().equals(resource.providerId())) {
+        if (!product.providerId().equals(resource.providerId())) {
             throw new IllegalArgumentException("Fuel product does not belong to provider");
         }
         var request = new FuelRequestPersistenceEntity();
@@ -39,11 +39,11 @@ public class FuelRequestService {
         request.setProviderId(resource.providerId());
         request.setEquipmentId(resource.equipmentId());
         request.setFuelProductId(resource.fuelProductId());
-        request.setFuelType(product.getFuelType().name());
-        request.setProductName(product.getName());
+        request.setFuelType(product.fuelType());
+        request.setProductName(product.name());
         request.setQuantity(resource.quantity());
-        request.setUnit(resource.unit() == null ? product.getUnit() : resource.unit());
-        request.setUnitPrice(product.getPricePerUnit());
+        request.setUnit(resource.unit() == null ? product.unit() : resource.unit());
+        request.setUnitPrice(product.pricePerUnit());
         request.setDeliveryAddress(resource.deliveryAddress());
         request.setDeliveryDate(resource.deliveryDate());
         request.setStatus(RequestStatus.PENDING);
@@ -69,7 +69,7 @@ public class FuelRequestService {
         var command = new CreateFuelOrderCommand(request.getBuyerCompanyId(), request.getProviderId(),
                 request.getFuelProductId(), request.getEquipmentId(), request.getQuantity(),
                 request.getDeliveryAddress(), request.getDeliveryDate());
-        var order = new FuelOrder(command, product.getPricePerUnit() * request.getQuantity());
+        var order = new FuelOrder(command, product.pricePerUnit() * request.getQuantity());
         order.setRequestId(requestId);
         order = orders.save(order);
         request.setStatus(RequestStatus.APPROVED);

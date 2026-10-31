@@ -1,7 +1,6 @@
 package com.halofuel.fuelbridge.platform.ordering.application.internal.commandservices;
 
-import com.halofuel.fuelbridge.platform.inventory.application.queryservices.FuelProductQueryService;
-import com.halofuel.fuelbridge.platform.inventory.domain.model.queries.GetFuelProductByIdQuery;
+import com.halofuel.fuelbridge.platform.ordering.application.outboundservices.FuelProductCatalog;
 import com.halofuel.fuelbridge.platform.ordering.application.commandservices.FuelOrderCommandService;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
@@ -25,24 +24,24 @@ import java.util.function.Consumer;
 public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
 
     private final FuelOrderRepository fuelOrderRepository;
-    private final FuelProductQueryService fuelProductQueryService;
+    private final FuelProductCatalog fuelProductCatalog;
 
     public FuelOrderCommandServiceImpl(FuelOrderRepository fuelOrderRepository,
-                                       FuelProductQueryService fuelProductQueryService) {
+                                       FuelProductCatalog fuelProductCatalog) {
         this.fuelOrderRepository = fuelOrderRepository;
-        this.fuelProductQueryService = fuelProductQueryService;
+        this.fuelProductCatalog = fuelProductCatalog;
     }
 
     @Override
     public Result<FuelOrder, ApplicationError> handle(CreateFuelOrderCommand command) {
-        var productResult = fuelProductQueryService.handle(new GetFuelProductByIdQuery(command.fuelProductId()));
+        var productResult = fuelProductCatalog.findById(command.fuelProductId());
         if (productResult.isEmpty()) {
             return Result.failure(ApplicationError.notFound("FuelProduct", command.fuelProductId().toString()));
         }
         var product = productResult.get();
         // Capture the catalog price at creation so later price changes do not
         // recalculate the amount stored on this order.
-        var totalPrice = product.getPricePerUnit() * command.requestedQuantity();
+        var totalPrice = product.pricePerUnit() * command.requestedQuantity();
         var order = new FuelOrder(command, totalPrice);
         var saved = fuelOrderRepository.save(order);
         return Result.success(saved);

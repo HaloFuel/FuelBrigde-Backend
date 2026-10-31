@@ -2,6 +2,10 @@ package com.halofuel.fuelbridge.platform.fulfillment.application.internal.comman
 
 import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts;
 import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts.FuelReceiptOutcome;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.InventoryStock;
+import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.InventoryStock.StockReservationOutcome;
+import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Driver;
+import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Vehicle;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.aggregates.Delivery;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CompleteDeliveryCommand;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.CreateDeliveryCommand;
@@ -9,7 +13,6 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.model.valueobjects.De
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DeliveryRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
-import com.halofuel.fuelbridge.platform.inventory.domain.repositories.FuelProductRepository;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
@@ -26,8 +29,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * Completion of a delivery after Equipment was extracted: Fulfillment registers the fuel
- * receipt through the outbound port and saves nothing when the Equipment service is down.
+ * Fulfillment after Equipment and Inventory were extracted: scheduling a delivery reserves stock
+ * in Inventory (released again if the local changes fail), and completing it registers the fuel
+ * receipt in Equipment. Nothing is saved when a remote service rejects the operation.
  */
 class DeliveryCommandServiceImplTest {
 
@@ -39,6 +43,7 @@ class DeliveryCommandServiceImplTest {
     private VehicleRepository vehicles;
     private FuelOrderRepository orders;
     private EquipmentFuelReceipts equipmentFuelReceipts;
+    private InventoryStock inventoryStock;
     private DeliveryCommandServiceImpl service;
 
     @BeforeEach
@@ -48,8 +53,9 @@ class DeliveryCommandServiceImplTest {
         vehicles = mock(VehicleRepository.class);
         orders = mock(FuelOrderRepository.class);
         equipmentFuelReceipts = mock(EquipmentFuelReceipts.class);
+        inventoryStock = mock(InventoryStock.class);
         service = new DeliveryCommandServiceImpl(deliveries, drivers, vehicles, orders,
-                mock(FuelProductRepository.class), equipmentFuelReceipts);
+                inventoryStock, equipmentFuelReceipts);
         when(deliveries.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(orders.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -122,5 +128,57 @@ class DeliveryCommandServiceImplTest {
 
         assertTrue(result.isSuccess());
         verifyNoInteractions(equipmentFuelReceipts);
+    }
+
+    private CreateDeliveryCommand scheduleRequest() {
+        var driver = new Driver(202L, "Juan", "Perez", "Q12345678", "999111222", "juan@example.com", "AVAILABLE");
+        driver.setId(3L);
+        var vehicle = new Vehicle(202L, "ABC-123", "Volvo", "FH", 500.0, "GAL", "AVAILABLE");
+        vehicle.setId(4L);
+        when(drivers.findById(3L)).thenReturn(Optional.of(driver));
+        when(vehicles.findById(4L)).thenReturn(Optional.of(vehicle));
+        var order = new FuelOrder(new CreateFuelOrderCommand(101L, 202L, 7L, null, 240.0,
+                "Av. Industrial 123, Lima", LocalDate.of(2026, 10, 15)), 3960.0);
+        when(orders.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        return new CreateDeliveryCommand(ORDER_ID, 202L, 3L, 4L, "2026-10-15", null);
+    }
+
+    @Test
+    void schedulingADeliveryReservesTheStockInInventory() {
+        var command = scheduleRequest();
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+
+        var result = service.handle(command);
+
+        assertTrue(result.isSuccess());
+        assertEquals(DeliveryStatus.DISPATCHED, result.toOptional().orElseThrow().getStatus());
+        assertEquals(OrderStatus.DISPATCHED, orders.findById(ORDER_ID).orElseThrow().getStatus());
+        verify(inventoryStock).reserve(7L, 240.0);
+        verify(inventoryStock, never()).release(any(), any());
+    }
+
+    @Test
+    void insufficientStockRejectsTheDeliveryWithoutSavingAnything() {
+        var command = scheduleRequest();
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.INSUFFICIENT_STOCK);
+
+        var result = service.handle(command);
+
+        assertTrue(result.isFailure());
+        verify(drivers, never()).save(any());
+        verify(vehicles, never()).save(any());
+        verify(orders, never()).save(any());
+        verify(deliveries, never()).save(any());
+    }
+
+    @Test
+    void reservedStockIsReleasedWhenTheDeliveryCannotBeSaved() {
+        var command = scheduleRequest();
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+        when(deliveries.save(any())).thenThrow(new IllegalStateException("database unavailable"));
+
+        assertThrows(IllegalStateException.class, () -> service.handle(command));
+
+        verify(inventoryStock).release(7L, 240.0);
     }
 }
