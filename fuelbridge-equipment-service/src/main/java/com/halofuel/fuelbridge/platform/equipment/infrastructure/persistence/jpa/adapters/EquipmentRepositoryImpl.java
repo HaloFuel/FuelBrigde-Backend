@@ -49,4 +49,9 @@ public class EquipmentRepositoryImpl implements EquipmentRepository {
     public boolean existsById(Long id) {
         return equipmentPersistenceRepository.existsById(id);
     }
+
+    @Override
+    public void deleteById(Long id) {
+        equipmentPersistenceRepository.deleteById(id);
+    }
 }

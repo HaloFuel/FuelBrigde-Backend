@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class EquipmentFuelReceiptSteps {
 
@@ -78,6 +79,31 @@ public class EquipmentFuelReceiptSteps {
         var equipment = client().get().uri("/api/v1/equipment/{id}", equipmentId)
                 .retrieve().body(Map.class);
         assertEquals(expectedLevel, ((Number) equipment.get("currentLevel")).intValue());
+    }
+
+    @When("the buyer deletes the equipment")
+    public void theBuyerDeletesTheEquipment() {
+        delete(equipmentId);
+    }
+
+    @When("the buyer deletes equipment {long}")
+    public void theBuyerDeletesEquipment(long unknownEquipmentId) {
+        delete(unknownEquipmentId);
+    }
+
+    @Then("the equipment should no longer exist")
+    public void theEquipmentShouldNoLongerExist() {
+        var missing = assertThrows(RestClientResponseException.class, () -> client().get()
+                .uri("/api/v1/equipment/{id}", equipmentId).retrieve().toBodilessEntity());
+        assertEquals(404, missing.getStatusCode().value());
+    }
+
+    private void delete(Long id) {
+        try {
+            lastStatus = client().delete().uri("/api/v1/equipment/{id}", id).retrieve().toBodilessEntity().getStatusCode();
+        } catch (RestClientResponseException ex) {
+            lastStatus = ex.getStatusCode();
+        }
     }
 
     private void receive(Long id, int quantity) {

@@ -22,8 +22,14 @@ class EquipmentServiceGatewayTest {
                     + exchange.getRequestHeaders().getFirst("Authorization") + " "
                     + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             var path = exchange.getRequestURI().getPath();
-            var status = path.endsWith("/999/fuel-receipts") ? 404 : path.endsWith("/fuel-receipts") ? 400 : 200;
+            var status = exchange.getRequestMethod().equals("DELETE") ? 204
+                    : path.endsWith("/999/fuel-receipts") ? 404 : path.endsWith("/fuel-receipts") ? 400 : 200;
             var response = "{\"code\":\"VALIDATION_ERROR\"}".getBytes(StandardCharsets.UTF_8);
+            if (status == 204) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(status, response.length);
             exchange.getResponseBody().write(response);
@@ -46,12 +52,14 @@ class EquipmentServiceGatewayTest {
             assertEquals(HttpStatus.BAD_REQUEST, invalid.getStatusCode());
             assertEquals("{\"code\":\"VALIDATION_ERROR\"}", new String(invalid.getBody(), StandardCharsets.UTF_8));
             assertEquals(HttpStatus.NOT_FOUND, gateway.receiveFuel(999L, body, request).getStatusCode());
+            assertEquals(HttpStatus.NO_CONTENT, gateway.delete(305L, request).getStatusCode());
 
             assertTrue(calls.get(0).startsWith("GET /api/v1/equipment Bearer signed-jwt"));
             assertTrue(calls.get(1).startsWith("GET /api/v1/equipment/305 "));
             assertTrue(calls.get(2).startsWith("GET /api/v1/equipment/company/101 "));
             assertTrue(calls.get(3).startsWith("POST /api/v1/equipment/305/update Bearer signed-jwt {\"name\":\"CAT\"}"));
             assertTrue(calls.get(4).endsWith("{\"quantity\":0}"));
+            assertTrue(calls.get(6).startsWith("DELETE /api/v1/equipment/305 Bearer signed-jwt"));
         } finally {
             server.stop(0);
         }
