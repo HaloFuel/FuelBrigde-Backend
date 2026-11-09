@@ -1,0 +1,72 @@
+name: Build and test
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  shared-kernel:
+    name: Install shared-kernel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: maven
+
+      - name: Install fuelbridge-shared-kernel locally
+        run: |
+          chmod +x fuelbridge-equipment-service/mvnw
+          ./fuelbridge-equipment-service/mvnw -B -f fuelbridge-shared-kernel/pom.xml clean install -DskipTests
+
+      - name: Cache local Maven repo for downstream jobs
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-shared-kernel-${{ github.run_id }}
+
+  build-and-test:
+    name: ${{ matrix.name }}
+    needs: shared-kernel
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Catalog service
+            dir: fuelbridge-catalog-service
+          - name: Notification service
+            dir: fuelbridge-notification-service
+          - name: Reporting service
+            dir: fuelbridge-reporting-service
+          - name: Equipment service
+            dir: fuelbridge-equipment-service
+          - name: Inventory service
+            dir: fuelbridge-inventory-service
+          - name: Residual monolith
+            dir: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: maven
+
+      - name: Restore shared-kernel from local Maven repo
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-shared-kernel-${{ github.run_id }}
+
+      - name: Build and test
+        working-directory: ${{ matrix.dir }}
+        run: chmod +x ./mvnw && ./mvnw -B clean verify
