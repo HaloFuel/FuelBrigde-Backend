@@ -21,8 +21,9 @@ jobs:
           cache: maven
 
       - name: Install fuelbridge-shared-kernel locally
-        working-directory: fuelbridge-shared-kernel
-        run: chmod +x ./mvnw && ./mvnw -B clean install -DskipTests
+        run: |
+          chmod +x fuelbridge-equipment-service/mvnw
+          ./fuelbridge-equipment-service/mvnw -B -f fuelbridge-shared-kernel/pom.xml clean install -DskipTests
 
       - name: Cache local Maven repo for downstream jobs
         uses: actions/cache/save@v4
