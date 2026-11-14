@@ -68,6 +68,11 @@ public class TokenServiceImpl implements BearerTokenService {
     }
 
     @Override
+    public java.time.Instant getExpirationFromToken(String token) {
+        return extractClaim(token, Claims::getExpiration).toInstant();
+    }
+
+    @Override
     public boolean validateToken(String token) {
         try {
             Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token);

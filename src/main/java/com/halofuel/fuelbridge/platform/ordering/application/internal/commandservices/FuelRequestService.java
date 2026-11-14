@@ -3,6 +3,7 @@ package com.halofuel.fuelbridge.platform.ordering.application.internal.commandse
 import com.halofuel.fuelbridge.platform.ordering.application.outboundservices.FuelProductCatalog;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.exceptions.IllegalOrderStateTransitionException;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.RequestStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.entities.FuelRequestPersistenceEntity;
@@ -67,7 +68,7 @@ public class FuelRequestService {
         var request = requests.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Fuel request not found"));
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new IllegalStateException("Only pending requests can be accepted");
+            throw new IllegalOrderStateTransitionException(request.getStatus(), RequestStatus.APPROVED);
         }
         var product = products.findById(request.getFuelProductId())
                 .orElseThrow(() -> new IllegalArgumentException("Fuel product not found"));
@@ -87,7 +88,7 @@ public class FuelRequestService {
         var request = requests.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Fuel request not found"));
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new IllegalStateException("Only pending requests can be rejected");
+            throw new IllegalOrderStateTransitionException(request.getStatus(), RequestStatus.REJECTED);
         }
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("Rejection reason is required");

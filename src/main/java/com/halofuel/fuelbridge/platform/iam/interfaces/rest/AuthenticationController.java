@@ -8,7 +8,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import com.halofuel.fuelbridge.platform.iam.application.commandservices.PasswordResetCommandService;
+import com.halofuel.fuelbridge.platform.iam.application.commandservices.RevokedTokenCommandService;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.ForgotPasswordResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.PasswordResetConfirmationResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.PasswordResetTokenResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.ResetPasswordResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.RequestPasswordResetCommandFromResourceAssembler;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.ResetPasswordCommandFromResourceAssembler;
 import com.halofuel.fuelbridge.platform.iam.application.commandservices.UserCommandService;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignOutResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.RevokeTokenCommandFromAuthorizationHeaderAssembler;
+import org.springframework.web.bind.annotation.RequestHeader;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignInResource;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignUpResource;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.AuthenticatedUserResourceFromEntityAssembler;
@@ -36,9 +47,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthenticationController {
 
     private final UserCommandService userCommandService;
+    private final RevokedTokenCommandService revokedTokenCommandService;
+    private final PasswordResetCommandService passwordResetCommandService;
 
-    public AuthenticationController(UserCommandService userCommandService) {
+    public AuthenticationController(UserCommandService userCommandService,
+                                    RevokedTokenCommandService revokedTokenCommandService,
+                                    PasswordResetCommandService passwordResetCommandService) {
         this.userCommandService = userCommandService;
+        this.revokedTokenCommandService = revokedTokenCommandService;
+        this.passwordResetCommandService = passwordResetCommandService;
     }
 
 
@@ -95,6 +112,74 @@ public class AuthenticationController {
                 result,
                 pair -> AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(
                         pair.getLeft(), pair.getRight()),
+                HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Cerrar sesión",
+        description = "Revoca el JWT enviado en el encabezado Authorization: guarda su hash SHA-256 en la lista de tokens revocados hasta que expire. Después, cualquier petición con ese token recibe 401.",
+        security = { @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth") }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token revocado.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SignOutResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"message\":\"Signed out\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido, expirado o ya revocado: 401 sin cuerpo.", content = @Content)
+    })
+    @PostMapping("/sign-out")
+    public ResponseEntity<?> signOut(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        var command = RevokeTokenCommandFromAuthorizationHeaderAssembler.toCommandFromHeader(authorization);
+        var result = revokedTokenCommandService.handle(command);
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                revoked -> new SignOutResource("Signed out"),
+                HttpStatus.OK);
+    }
+
+    @io.swagger.v3.oas.annotations.security.SecurityRequirements
+    @Operation(
+        summary = "Solicitar recuperación de contraseña",
+        description = "Genera un token de restablecimiento (UUID, válido 1 hora, de un solo uso) para el usuario indicado por email o username (el username es el correo de la cuenta). Solo se guarda su hash. En esta versión el token se devuelve en la respuesta en lugar de enviarse por correo. Una nueva solicitud invalida los tokens anteriores del usuario.",
+        security = {},
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Email o username de la cuenta.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ForgotPasswordResource.class),
+                examples = @ExampleObject(name = "principal", value = "{\"email\":\"compras.costasur\"}")))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token generado.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PasswordResetTokenResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"token\":\"3f6b0c52-8d1e-4a7b-9c5e-2b7a1d0f4e66\",\"expiresAt\":\"2026-11-14T22:00:00Z\"}"))),
+        @ApiResponse(responseCode = "400", description = "No se indicó email ni username.", content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "404", description = "El usuario no existe.", content = @Content(mediaType = "application/json"))
+    })
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordResource resource) {
+        var command = RequestPasswordResetCommandFromResourceAssembler.toCommandFromResource(resource);
+        var result = passwordResetCommandService.handle(command);
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                pair -> new PasswordResetTokenResource(pair.getRight(), pair.getLeft().getExpiresAt()),
+                HttpStatus.OK);
+    }
+
+    @io.swagger.v3.oas.annotations.security.SecurityRequirements
+    @Operation(
+        summary = "Restablecer contraseña",
+        description = "Cambia la contraseña con un token de restablecimiento válido (existente, no expirado y no usado) y lo marca como usado. La nueva contraseña debe tener entre 8 caracteres y 72 bytes.",
+        security = {},
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Token recibido y nueva contraseña.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResetPasswordResource.class),
+                examples = @ExampleObject(name = "principal", value = "{\"token\":\"3f6b0c52-8d1e-4a7b-9c5e-2b7a1d0f4e66\",\"newPassword\":\"NuevaClave!2026\"}")))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Contraseña actualizada.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PasswordResetConfirmationResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"message\":\"Password updated\"}"))),
+        @ApiResponse(responseCode = "400", description = "Token inexistente, expirado o ya usado, o contraseña inválida.", content = @Content(mediaType = "application/json"))
+    })
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordResource resource) {
+        var command = ResetPasswordCommandFromResourceAssembler.toCommandFromResource(resource);
+        var result = passwordResetCommandService.handle(command);
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                ignored -> new PasswordResetConfirmationResource("Password updated"),
                 HttpStatus.OK);
     }
 }
