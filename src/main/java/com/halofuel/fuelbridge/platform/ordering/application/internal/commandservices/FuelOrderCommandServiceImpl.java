@@ -19,8 +19,10 @@ import java.util.function.Consumer;
 /**
  * Coordinates order commands and persistence. Status changes and their domain
  * events belong to the aggregate; handlers invoke its methods before saving.
- * Confirmation and cancellation currently have no source-status guard, while
- * dispatch requires PENDING and rejects other states with IllegalStateException.
+ * The aggregate guards every transition: confirm, cancel, receive and mark-paid reject an
+ * invalid source status with IllegalOrderStateTransitionException (mapped to 409 by
+ * OrderingExceptionHandler), while dispatch requires PENDING and rejects other states with a
+ * plain IllegalStateException.
  */
 @Service
 public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {

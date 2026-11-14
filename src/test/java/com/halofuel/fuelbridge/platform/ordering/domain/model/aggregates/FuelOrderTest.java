@@ -67,7 +67,7 @@ class FuelOrderTest {
         // Act + Assert
         assertThatThrownBy(order::confirm)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Order is not pending confirmation");
+                .hasMessage("Cannot transition from CANCELLED to CONFIRMED");
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
 
@@ -129,7 +129,7 @@ class FuelOrderTest {
         // Act + Assert
         assertThatThrownBy(order::receive)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Order is not dispatched");
+                .hasMessage("Cannot transition from PENDING to PENDING_PAYMENT");
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
     }
 
@@ -156,7 +156,7 @@ class FuelOrderTest {
         // Act + Assert
         assertThatThrownBy(order::markPaid)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Cancelled orders cannot be paid");
+                .hasMessage("Cannot transition from CANCELLED to PAID");
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
 }
