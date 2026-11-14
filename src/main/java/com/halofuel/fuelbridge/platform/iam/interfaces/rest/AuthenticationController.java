@@ -8,7 +8,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import com.halofuel.fuelbridge.platform.iam.application.commandservices.RevokedTokenCommandService;
 import com.halofuel.fuelbridge.platform.iam.application.commandservices.UserCommandService;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignOutResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.RevokeTokenCommandFromAuthorizationHeaderAssembler;
+import org.springframework.web.bind.annotation.RequestHeader;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignInResource;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.SignUpResource;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.AuthenticatedUserResourceFromEntityAssembler;
@@ -36,9 +40,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthenticationController {
 
     private final UserCommandService userCommandService;
+    private final RevokedTokenCommandService revokedTokenCommandService;
 
-    public AuthenticationController(UserCommandService userCommandService) {
+    public AuthenticationController(UserCommandService userCommandService,
+                                    RevokedTokenCommandService revokedTokenCommandService) {
         this.userCommandService = userCommandService;
+        this.revokedTokenCommandService = revokedTokenCommandService;
     }
 
 
@@ -95,6 +102,25 @@ public class AuthenticationController {
                 result,
                 pair -> AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(
                         pair.getLeft(), pair.getRight()),
+                HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Cerrar sesión",
+        description = "Revoca el JWT enviado en el encabezado Authorization: guarda su hash SHA-256 en la lista de tokens revocados hasta que expire. Después, cualquier petición con ese token recibe 401.",
+        security = { @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth") }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token revocado.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = SignOutResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"message\":\"Signed out\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido, expirado o ya revocado: 401 sin cuerpo.", content = @Content)
+    })
+    @PostMapping("/sign-out")
+    public ResponseEntity<?> signOut(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        var command = RevokeTokenCommandFromAuthorizationHeaderAssembler.toCommandFromHeader(authorization);
+        var result = revokedTokenCommandService.handle(command);
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                revoked -> new SignOutResource("Signed out"),
                 HttpStatus.OK);
     }
 }
