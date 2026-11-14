@@ -7,6 +7,8 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFu
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
+import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
+import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,9 +79,10 @@ class FuelOrderCommandServiceImplTest {
         var order = pendingOrder(1L);
         order.setStatus(OrderStatus.CANCELLED);
 
-        assertThrows(IllegalStateException.class,
-                () -> service.handle(new DispatchFuelOrderCommand(1L)));
+        var result = service.handle(new DispatchFuelOrderCommand(1L));
 
+        var failure = assertInstanceOf(Result.Failure.class, result);
+        assertEquals("FUELORDER_CONFLICT", ((ApplicationError) failure.error()).code());
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
         verify(repository, never()).save(any());
     }
@@ -94,9 +97,8 @@ class FuelOrderCommandServiceImplTest {
         var order = pendingOrder(4L);
         order.setStatus(OrderStatus.PAID);
 
-        // Attempt to dispatch the paid order
-        assertThrows(IllegalStateException.class,
-                () -> service.handle(new DispatchFuelOrderCommand(4L)));
+        // Attempt to dispatch the paid order: rejected as a conflict
+        assertTrue(service.handle(new DispatchFuelOrderCommand(4L)).isFailure());
 
         // Verify the original status is preserved
         assertEquals(OrderStatus.PAID, order.getStatus());
