@@ -1,7 +1,8 @@
 package com.halofuel.fuelbridge.platform.fulfillment.infrastructure.http;
 
 import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.InventoryStock;
-import com.halofuel.fuelbridge.platform.iam.application.internal.outboundservices.tokens.TokenService;
+import com.halofuel.fuelbridge.platform.fulfillment.infrastructure.security.configuration.ServiceTokenConfiguration;
+import com.halofuel.fuelbridge.platform.shared.infrastructure.security.ServiceTokenIssuer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,12 +17,12 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class InventoryServiceStock implements InventoryStock {
     private static final Logger LOGGER = LoggerFactory.getLogger(InventoryServiceStock.class);
-    private final TokenService tokenService;
+    private final ServiceTokenIssuer tokenIssuer;
     private final RestClient client;
 
-    public InventoryServiceStock(TokenService tokenService,
+    public InventoryServiceStock(ServiceTokenIssuer tokenIssuer,
                                  @Value("${inventory.service.url}") String baseUrl) {
-        this.tokenService = tokenService;
+        this.tokenIssuer = tokenIssuer;
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3000);
         factory.setReadTimeout(5000);
@@ -56,7 +57,7 @@ public class InventoryServiceStock implements InventoryStock {
 
     private void post(String path, Long fuelProductId, Double quantity) {
         // Service identity: Inventory validates it locally with the shared JWT secret.
-        String jwt = tokenService.generateToken("fuelbridge-fulfillment");
+        String jwt = tokenIssuer.issueFor(ServiceTokenConfiguration.SERVICE_NAME);
         client.post().uri(path, fuelProductId)
                 .headers(headers -> headers.setBearerAuth(jwt))
                 .contentType(MediaType.APPLICATION_JSON)

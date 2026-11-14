@@ -1,7 +1,8 @@
 package com.halofuel.fuelbridge.platform.fulfillment.infrastructure.http;
 
 import com.halofuel.fuelbridge.platform.fulfillment.application.outboundservices.EquipmentFuelReceipts;
-import com.halofuel.fuelbridge.platform.iam.application.internal.outboundservices.tokens.TokenService;
+import com.halofuel.fuelbridge.platform.fulfillment.infrastructure.security.configuration.ServiceTokenConfiguration;
+import com.halofuel.fuelbridge.platform.shared.infrastructure.security.ServiceTokenIssuer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -13,12 +14,12 @@ import org.springframework.web.client.RestClientResponseException;
 /** Calls POST /api/v1/equipment/{id}/fuel-receipts on the standalone Equipment service. */
 @Component
 public class EquipmentServiceFuelReceipts implements EquipmentFuelReceipts {
-    private final TokenService tokenService;
+    private final ServiceTokenIssuer tokenIssuer;
     private final RestClient client;
 
-    public EquipmentServiceFuelReceipts(TokenService tokenService,
+    public EquipmentServiceFuelReceipts(ServiceTokenIssuer tokenIssuer,
                                         @Value("${equipment.service.url}") String baseUrl) {
-        this.tokenService = tokenService;
+        this.tokenIssuer = tokenIssuer;
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3000);
         factory.setReadTimeout(5000);
@@ -28,7 +29,7 @@ public class EquipmentServiceFuelReceipts implements EquipmentFuelReceipts {
     @Override
     public FuelReceiptOutcome register(Long equipmentId, Double quantity) {
         // Service identity: the Equipment service validates it locally with the shared JWT secret.
-        String jwt = tokenService.generateToken("fuelbridge-fulfillment");
+        String jwt = tokenIssuer.issueFor(ServiceTokenConfiguration.SERVICE_NAME);
         try {
             client.post().uri("/api/v1/equipment/{id}/fuel-receipts", equipmentId)
                     .headers(headers -> headers.setBearerAuth(jwt))
