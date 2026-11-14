@@ -27,12 +27,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CucumberSpringConfiguration {
 
     private static final NotificationHttpStub NOTIFICATION_SERVICE = new NotificationHttpStub();
-    private static final InventoryHttpStub INVENTORY_SERVICE = new InventoryHttpStub();
 
     @DynamicPropertySource
     static void notificationServiceProperties(DynamicPropertyRegistry registry) {
         registry.add("notification.service.url", NOTIFICATION_SERVICE::baseUrl);
-        registry.add("inventory.service.url", INVENTORY_SERVICE::baseUrl);
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -41,11 +39,6 @@ public class CucumberSpringConfiguration {
         @Bean(destroyMethod = "close")
         public NotificationHttpStub notificationHttpStub() {
             return NOTIFICATION_SERVICE;
-        }
-
-        @Bean(destroyMethod = "close")
-        public InventoryHttpStub inventoryHttpStub() {
-            return INVENTORY_SERVICE;
         }
 
         @Bean
