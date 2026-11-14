@@ -1,9 +1,9 @@
 @startuml fulfillment
 '==============================================================
-' Bounded Context: Fulfillment
+' Bounded Context: Fulfillment (fuelbridge-fulfillment-service, Sprint 3)
 ' Capas: interfaces / application / domain / infrastructure
 '==============================================================
-title Bounded Context - Fulfillment
+title Fulfillment Service - Diagrama de clases (Sprint 3)
 
 skinparam packageStyle rectangle
 skinparam shadowing false
@@ -44,6 +44,20 @@ package "application" <<application>> {
   package "internal" {
     class DeliveryCommandServiceImpl
     class DeliveryQueryServiceImpl
+  }
+  package "outboundservices" {
+    interface FuelOrders {
+      + findById(Long) : Optional<FuelOrderSnapshot>
+      + dispatch(Long) : TransitionOutcome
+      + receive(Long) : TransitionOutcome
+    }
+    interface InventoryStock {
+      + reserve(Long, Double) : StockReservationOutcome
+      + release(Long, Double)
+    }
+    interface EquipmentFuelReceipts {
+      + register(Long, Double) : FuelReceiptOutcome
+    }
   }
 }
 
@@ -114,6 +128,15 @@ package "domain" <<domain>> {
 
 ' =========================== INFRASTRUCTURE ===========================
 package "infrastructure" <<infrastructure>> {
+  package "http" {
+    class OrderingServiceFuelOrders
+    class InventoryServiceStock
+    class EquipmentServiceFuelReceipts
+  }
+  package "security.configuration" {
+    class ServiceTokenConfiguration
+    class WebSecurityConfiguration
+  }
   package "persistence.jpa.adapters" {
     class DeliveryRepositoryImpl
     class DriverRepositoryImpl
@@ -158,4 +181,19 @@ DeliveryRepositoryImpl ..> DeliveryPersistenceRepository
 DeliveryRepositoryImpl ..> DeliveryPersistenceAssembler
 DeliveryPersistenceAssembler ..> DeliveryPersistenceEntity
 DeliveryPersistenceAssembler ..> Delivery
+
+DeliveryCommandServiceImpl ..> FuelOrders
+DeliveryCommandServiceImpl ..> InventoryStock
+DeliveryCommandServiceImpl ..> EquipmentFuelReceipts
+OrderingServiceFuelOrders ..|> FuelOrders
+InventoryServiceStock ..|> InventoryStock
+EquipmentServiceFuelReceipts ..|> EquipmentFuelReceipts
+InventoryServiceStock ..> ServiceTokenConfiguration : ServiceTokenIssuer
+EquipmentServiceFuelReceipts ..> ServiceTokenConfiguration : ServiceTokenIssuer
+
+note right of OrderingServiceFuelOrders
+  REST hacia FuelBridge Platform (Ordering).
+  Reenvia el JWT del usuario: la plataforma
+  resuelve el sujeto contra su base de usuarios.
+end note
 @enduml
