@@ -1,14 +1,11 @@
 package com.halofuel.fuelbridge.platform.iam.domain.model.aggregates;
 
+import com.halofuel.fuelbridge.platform.iam.domain.model.valueobjects.TokenHash;
 import com.halofuel.fuelbridge.platform.shared.domain.model.aggregates.AbstractDomainAggregateRoot;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 
 /**
  * A JWT that was revoked before its natural expiration (sign-out). Only the SHA-256 hash
@@ -40,11 +37,6 @@ public class RevokedToken extends AbstractDomainAggregateRoot<RevokedToken> {
 
     /** Lower-case hex SHA-256 of the token (64 characters). */
     public static String hash(String token) {
-        try {
-            var digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
+        return TokenHash.sha256(token);
     }
 }

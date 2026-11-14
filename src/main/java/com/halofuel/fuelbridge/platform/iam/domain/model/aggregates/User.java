@@ -62,6 +62,15 @@ public class User extends AbstractDomainAggregateRoot<User> {
         return this;
     }
 
+    /** Replaces the credentials with an already encoded password; never pass a raw password. */
+    public User changePassword(String encodedPassword) {
+        if (encodedPassword == null || encodedPassword.isBlank()) {
+            throw new IllegalArgumentException("Encoded password is required");
+        }
+        this.password = encodedPassword;
+        return this;
+    }
+
     public User addRole(Role role) {
         this.roles.add(role);
         return this;
