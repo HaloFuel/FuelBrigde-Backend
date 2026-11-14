@@ -1,0 +1,48 @@
+@startuml delivery-scheduling-saga
+'==============================================================
+' Saga orquestada: programación de una entrega (Sprint 3, T09.03)
+' Renderizar en https://www.plantuml.com/plantuml
+'==============================================================
+title Programar entrega - Saga orquestada por Fulfillment Service
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+autonumber
+
+actor Provider
+participant "Web Application" as Web
+participant "FuelBridge Platform\n(FulfillmentServiceGateway)" as Gateway
+participant "Fulfillment Service\n(DeliveryCommandServiceImpl)" as Fulfillment
+database "fuelbridge_fulfillment" as FulfillmentDb
+participant "FuelBridge Platform\n(Ordering)" as Ordering
+participant "Inventory Service" as Inventory
+
+Provider -> Web : Asigna conductor y vehículo
+Web -> Gateway : POST /api/v1/deliveries (JWT)
+Gateway -> Fulfillment : Reenvía cuerpo y JWT
+Fulfillment -> FulfillmentDb : Conductor, vehículo y entrega previa
+Fulfillment -> Ordering : GET /fuel-orders/{orderId} (JWT del usuario)
+Ordering --> Fulfillment : Pedido PENDING
+note over Fulfillment : Reglas locales: proveedor, disponibilidad,\ncapacidad y estado PENDING
+
+Fulfillment -> Inventory : POST stock-reservations (JWT de servicio)
+alt stock insuficiente
+  Inventory --> Fulfillment : 409
+  Fulfillment --> Gateway : 409 (no se guarda nada)
+else reservado
+  Inventory --> Fulfillment : 200
+  Fulfillment -> FulfillmentDb : Conductor ASSIGNED, vehículo IN_ROUTE,\nentrega DISPATCHED (sin confirmar)
+  Fulfillment -> Ordering : POST /fuel-orders/{orderId}/dispatch
+  alt Ordering acepta
+    Ordering --> Fulfillment : 200 (pedido DISPATCHED)
+    Fulfillment -> FulfillmentDb : COMMIT
+    Fulfillment --> Gateway : 201 Created
+  else Ordering rechaza o no responde
+    Ordering --> Fulfillment : 409 / error
+    Fulfillment -> FulfillmentDb : ROLLBACK
+    Fulfillment -> Inventory : POST stock-releases (compensación)
+    Fulfillment --> Gateway : 409 / 500
+  end
+end
+Gateway --> Web : Respuesta del microservicio
+@enduml
