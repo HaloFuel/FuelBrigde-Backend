@@ -15,6 +15,8 @@ import com.halofuel.fuelbridge.platform.ordering.application.queryservices.FuelO
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.MarkFuelOrderPaidCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ReceiveFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetAllFuelOrdersQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrderByIdQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrdersByCompanyIdQuery;
@@ -161,6 +163,54 @@ public class FuelOrdersController {
     @PostMapping("/{orderId}/dispatch")
     public ResponseEntity<?> dispatchOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new DispatchFuelOrderCommand(orderId));
+
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Marcar pedido como pagado",
+        description = "Cambia el estado del pedido a PAID. Lo invoca Payment al completar el pago del pedido; un pedido CANCELLED no puede marcarse como pagado. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PAID\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el pedido indicado.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Pedido de combustible no encontrado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_NOT_FOUND\",\"message\":\"Pedido de combustible no encontrado\",\"details\":\"No existe pedido de combustible con identificador 4101.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El estado actual del pedido no permite marcarlo como pagado.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "conflicto", summary = "Pedido cancelado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_CONFLICT\",\"message\":\"Conflict with FuelOrder\",\"details\":\"Cancelled orders cannot be paid\"}")))
+    })
+    @PostMapping("/{orderId}/mark-paid")
+    public ResponseEntity<?> markOrderAsPaid(@PathVariable Long orderId) {
+        var result = fuelOrderCommandService.handle(new MarkFuelOrderPaidCommand(orderId));
+
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Registrar recepción del pedido",
+        description = "Cambia el estado de un pedido DISPATCHED a PENDING_PAYMENT. Lo invoca Fulfillment al completar la entrega. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING_PAYMENT\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el pedido indicado.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Pedido de combustible no encontrado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_NOT_FOUND\",\"message\":\"Pedido de combustible no encontrado\",\"details\":\"No existe pedido de combustible con identificador 4101.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El pedido no está en estado DISPATCHED.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "conflicto", summary = "Pedido no despachado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_CONFLICT\",\"message\":\"Conflict with FuelOrder\",\"details\":\"Order is not dispatched\"}")))
+    })
+    @PostMapping("/{orderId}/receive")
+    public ResponseEntity<?> receiveOrder(@PathVariable Long orderId) {
+        var result = fuelOrderCommandService.handle(new ReceiveFuelOrderCommand(orderId));
 
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
