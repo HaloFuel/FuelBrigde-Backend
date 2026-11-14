@@ -11,7 +11,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+import com.halofuel.fuelbridge.platform.iam.application.commandservices.UserCommandService;
 import com.halofuel.fuelbridge.platform.iam.application.queryservices.UserQueryService;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UpdateUserProfileResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserProfileResource;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.UpdateUserProfileCommandFromResourceAssembler;
+import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.UserProfileResourceFromEntityAssembler;
+import com.halofuel.fuelbridge.platform.shared.interfaces.rest.resources.ErrorResource;
+import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ResponseEntityAssembler;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetAllUsersQuery;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByIdQuery;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserResource;
@@ -33,9 +43,11 @@ import java.util.List;
 public class UsersController {
 
     private final UserQueryService userQueryService;
+    private final UserCommandService userCommandService;
 
-    public UsersController(UserQueryService userQueryService) {
+    public UsersController(UserQueryService userQueryService, UserCommandService userCommandService) {
         this.userQueryService = userQueryService;
+        this.userCommandService = userCommandService;
     }
 
     @Operation(
@@ -78,5 +90,45 @@ public class UsersController {
         return result.map(user -> new ResponseEntity<>(
                         UserResourceFromEntityAssembler.toResourceFromEntity(user), HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    @Operation(
+        summary = "Editar perfil de usuario",
+        description = "Actualiza el nombre completo y el teléfono del usuario. Solo el propio usuario autenticado puede editar su perfil. fullName es obligatorio; un phone vacío lo elimina.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "userId", in = ParameterIn.PATH, required = true, description = "Identificador del usuario cuyo perfil se edita.", example = "1101")
+        },
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true, description = "Datos editables del perfil.",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = UpdateUserProfileResource.class),
+                examples = @ExampleObject(name = "principal", value = "{\"fullName\":\"Rosa Medina Paredes\",\"phone\":\"+51987654321\"}")))
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil actualizado.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserProfileResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1101,\"username\":\"compras.costasur\",\"fullName\":\"Rosa Medina Paredes\",\"phone\":\"+51987654321\"}"))),
+        @ApiResponse(responseCode = "400", description = "Datos de perfil inválidos (nombre vacío o demasiado largo, teléfono demasiado largo).", content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "El usuario autenticado intenta editar el perfil de otro usuario.", content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "404", description = "El usuario no existe.", content = @Content(mediaType = "application/json"))
+    })
+    @PutMapping("/{userId}/profile")
+    public ResponseEntity<?> updateUserProfile(@PathVariable Long userId,
+                                               @RequestBody UpdateUserProfileResource resource,
+                                               Authentication authentication) {
+        // Only the owner may edit a profile. A missing user falls through to the command
+        // service so it answers 404.
+        var target = userQueryService.handle(new GetUserByIdQuery(userId));
+        if (target.isPresent() && !target.get().getUsername().equals(authentication.getName())) {
+            return new ResponseEntity<>(
+                    new ErrorResource("USER_FORBIDDEN", "Access denied",
+                            "Only the profile owner can edit this profile"),
+                    HttpStatus.FORBIDDEN);
+        }
+        var command = UpdateUserProfileCommandFromResourceAssembler.toCommandFromResource(userId, resource);
+        var result = userCommandService.handle(command);
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                UserProfileResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
     }
 }

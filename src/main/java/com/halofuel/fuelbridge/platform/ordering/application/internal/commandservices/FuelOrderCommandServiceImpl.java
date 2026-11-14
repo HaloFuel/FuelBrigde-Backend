@@ -17,11 +17,11 @@ import org.springframework.stereotype.Service;
 import java.util.function.Consumer;
 
 /**
- * Coordinates order commands and persistence. Status changes and their domain
- * events belong to the aggregate; handlers invoke its methods before saving.
- * Cancellation currently has no source-status guard. Dispatch, mark-paid and receive
- * are requested by the Fulfillment and Payment services, so a transition the aggregate
- * rejects is returned as FUELORDER_CONFLICT (409) instead of an exception.
+ * The aggregate guards every transition: confirm and cancel reject an invalid source
+ * status with IllegalOrderStateTransitionException (mapped to 409 by
+ * OrderingExceptionHandler). Dispatch, mark-paid and receive are requested by the
+ * Fulfillment and Payment services, so a transition the aggregate rejects is returned
+ * as FUELORDER_CONFLICT (409) instead of an exception.
  */
 @Service
 public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {

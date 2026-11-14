@@ -2,6 +2,7 @@ package com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates;
 
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderCancelledEvent;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.exceptions.IllegalOrderStateTransitionException;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderConfirmedEvent;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.events.FuelOrderDispatchedEvent;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
@@ -11,11 +12,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.EnumSet;
+import java.util.Set;
 
 @Getter
 @Setter
 @NoArgsConstructor
 public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
+
+    /** Statuses an order can still be cancelled from; every other status is final or already in motion. */
+    private static final Set<OrderStatus> CANCELLABLE_STATUSES = EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED);
 
     private Long id;
     private Long requestId;
@@ -42,12 +48,17 @@ public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
     }
 
     public void confirm() {
-        if (status != OrderStatus.PENDING) throw new IllegalStateException("Order is not pending confirmation");
+        requireStatus(OrderStatus.CONFIRMED, OrderStatus.PENDING);
         this.status = OrderStatus.CONFIRMED;
         registerDomainEvent(new FuelOrderConfirmedEvent(this.id, this.companyId));
     }
 
+    public boolean canCancel() {
+        return CANCELLABLE_STATUSES.contains(status);
+    }
+
     public void cancel() {
+        if (!canCancel()) throw new IllegalOrderStateTransitionException(status, OrderStatus.CANCELLED);
         this.status = OrderStatus.CANCELLED;
         registerDomainEvent(new FuelOrderCancelledEvent(this.id, this.companyId));
     }
@@ -59,12 +70,16 @@ public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
     }
 
     public void receive() {
-        if (status != OrderStatus.DISPATCHED) throw new IllegalStateException("Order is not dispatched");
+        requireStatus(OrderStatus.PENDING_PAYMENT, OrderStatus.DISPATCHED);
         this.status = OrderStatus.PENDING_PAYMENT;
     }
 
     public void markPaid() {
-        if (status == OrderStatus.CANCELLED) throw new IllegalStateException("Cancelled orders cannot be paid");
+        requireStatus(OrderStatus.PAID, OrderStatus.PENDING_PAYMENT);
         this.status = OrderStatus.PAID;
+    }
+
+    private void requireStatus(OrderStatus target, OrderStatus requiredCurrent) {
+        if (status != requiredCurrent) throw new IllegalOrderStateTransitionException(status, target);
     }
 }

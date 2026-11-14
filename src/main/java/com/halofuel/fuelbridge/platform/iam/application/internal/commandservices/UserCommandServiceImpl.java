@@ -6,6 +6,7 @@ import com.halofuel.fuelbridge.platform.iam.application.internal.outboundservice
 import com.halofuel.fuelbridge.platform.iam.domain.model.aggregates.User;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignInCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignUpCommand;
+import com.halofuel.fuelbridge.platform.iam.domain.model.commands.UpdateUserProfileCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.entities.Role;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.RoleRepository;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.UserRepository;
@@ -70,5 +71,20 @@ public class UserCommandServiceImpl implements UserCommandService {
         return userRepository.findByUsername(command.username())
                 .<Result<User, ApplicationError>>map(Result::success)
                 .orElseGet(() -> Result.failure(ApplicationError.unexpected("sign-up", "Created user could not be reloaded")));
+    }
+
+    @Override
+    public Result<User, ApplicationError> handle(UpdateUserProfileCommand command) {
+        var existing = userRepository.findById(command.userId());
+        if (existing.isEmpty()) {
+            return Result.failure(ApplicationError.notFound("User", String.valueOf(command.userId())));
+        }
+        var user = existing.get();
+        try {
+            user.updateProfile(command.fullName(), command.phone());
+        } catch (IllegalArgumentException ex) {
+            return Result.failure(ApplicationError.validationError("profile", ex.getMessage()));
+        }
+        return Result.success(userRepository.save(user));
     }
 }

@@ -1,5 +1,6 @@
 package com.halofuel.fuelbridge.platform.iam.infrastructure.authorization.sfs.configuration;
 
+import com.halofuel.fuelbridge.platform.iam.application.queryservices.RevokedTokenQueryService;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.authorization.sfs.pipeline.BearerAuthorizationRequestFilter;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.hashing.bcrypt.BCryptHashingService;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.tokens.jwt.BearerTokenService;
@@ -29,23 +30,26 @@ public class WebSecurityConfiguration {
     private final BCryptHashingService hashingService;
     private final AuthenticationEntryPoint unauthorizedRequestHandler;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final RevokedTokenQueryService revokedTokenQueryService;
 
     public WebSecurityConfiguration(
             @Qualifier("defaultUserDetailsService") UserDetailsService userDetailsService,
             BearerTokenService tokenService,
             BCryptHashingService hashingService,
             AuthenticationEntryPoint unauthorizedRequestHandler,
-            CorsConfigurationSource corsConfigurationSource) {
+            CorsConfigurationSource corsConfigurationSource,
+            RevokedTokenQueryService revokedTokenQueryService) {
         this.userDetailsService = userDetailsService;
         this.tokenService = tokenService;
         this.hashingService = hashingService;
         this.unauthorizedRequestHandler = unauthorizedRequestHandler;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.revokedTokenQueryService = revokedTokenQueryService;
     }
 
     @Bean
     public BearerAuthorizationRequestFilter authorizationRequestFilter() {
-        return new BearerAuthorizationRequestFilter(tokenService, userDetailsService);
+        return new BearerAuthorizationRequestFilter(tokenService, userDetailsService, revokedTokenQueryService);
     }
 
     @Bean
@@ -72,6 +76,8 @@ public class WebSecurityConfiguration {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedRequestHandler))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Must come before the authentication/** permit-all rule below.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/authentication/sign-out").authenticated()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/buyer-companies",
                                 "/api/v1/provider-companies").permitAll()
