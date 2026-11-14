@@ -7,9 +7,6 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.model.commands.Create
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DeliveryRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRepository;
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
-import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
-import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
-import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -24,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,18 +42,19 @@ public class DispatchAssignmentSteps {
     private VehicleRepository vehicleRepository;
 
     @Autowired
+    private DeliveryRepository deliveryRepository;
+
+    @Autowired
     private InventoryHttpStub inventoryService;
 
     @Autowired
-    private FuelOrderRepository fuelOrderRepository;
-
-    @Autowired
-    private DeliveryRepository deliveryRepository;
+    private OrderingHttpStub orderingService;
 
     private Driver driver;
     private Vehicle vehicle;
     private Long productId;
-    private FuelOrder order;
+    private Long orderId;
+    private Long orderProviderId;
     private MvcResult response;
 
     @Given("an available driver and an available vehicle for provider {int}")
@@ -78,10 +77,15 @@ public class DispatchAssignmentSteps {
 
     @Given("a pending fuel order for provider {int} requesting {double} units")
     public void aPendingFuelOrderRequestingUnits(int providerId, double quantity) {
+        aFuelOrderWithStatus(providerId, quantity, "PENDING");
+    }
+
+    @Given("a fuel order for provider {int} requesting {double} units with status {string}")
+    public void aFuelOrderWithStatus(int providerId, double quantity, String status) {
         ensureProduct();
-        var command = new CreateFuelOrderCommand(101L, (long) providerId, productId, null,
-                quantity, "Obra - Av. Test 123", LocalDate.now().plusDays(2));
-        order = fuelOrderRepository.save(new FuelOrder(command, quantity * 16.0));
+        // Ordering remains in the FuelBridge Platform; the scenario uses its HTTP stand-in.
+        orderProviderId = (long) providerId;
+        orderId = orderingService.addOrder(providerId, productId, null, quantity, status);
     }
 
     @Given("the fuel product has {double} units of available stock")
@@ -92,15 +96,21 @@ public class DispatchAssignmentSteps {
 
     @Given("that order already has a scheduled delivery")
     public void thatOrderAlreadyHasAScheduledDelivery() {
-        var existingDriver = driverRepository.save(new Driver(order.getProviderId(), "Otro", "Conductor",
-                "Q99999999", "999000111", "otro@example.com", "AVAILABLE"));
-        var existingVehicle = vehicleRepository.save(new Vehicle(order.getProviderId(), "XYZ-999", "Scania",
+        var suffix = FIXTURE_SEQUENCE.incrementAndGet();
+        var existingDriver = driverRepository.save(new Driver(orderProviderId, "Otro", "Conductor",
+                "Q9999" + suffix, "999000111", "otro+" + suffix + "@example.com", "AVAILABLE"));
+        var existingVehicle = vehicleRepository.save(new Vehicle(orderProviderId, "XYZ-" + suffix, "Scania",
                 "P410", 500.0, "GAL", "AVAILABLE"));
-        var command = new CreateDeliveryCommand(order.getId(), order.getProviderId(),
+        var command = new CreateDeliveryCommand(orderId, orderProviderId,
                 existingDriver.getId(), existingVehicle.getId(), LocalDate.now().plusDays(2).toString(), null);
         var delivery = new Delivery(command);
         delivery.dispatch();
         deliveryRepository.save(delivery);
+    }
+
+    @Given("Ordering will reject the dispatch of that order")
+    public void orderingWillRejectTheDispatchOfThatOrder() {
+        orderingService.rejectDispatchOf(orderId);
     }
 
     private void ensureProduct() {
@@ -116,7 +126,7 @@ public class DispatchAssignmentSteps {
         var body = """
                 {"orderId": %d, "providerId": %d, "driverId": %d, "vehicleId": %d,
                  "scheduledDate": "%s", "notes": "Entrega de prueba BDD"}
-                """.formatted(order.getId(), order.getProviderId(), driver.getId(), vehicle.getId(),
+                """.formatted(orderId, orderProviderId, driver.getId(), vehicle.getId(),
                 LocalDate.now().plusDays(2));
         response = mockMvc.perform(
                 post("/api/v1/deliveries").with(user("provider"))
@@ -133,8 +143,13 @@ public class DispatchAssignmentSteps {
 
     @Then("the delivery status should be {string}")
     public void theDeliveryStatusShouldBe(String expectedStatus) {
-        var delivery = deliveryRepository.findByOrderId(order.getId()).orElseThrow();
+        var delivery = deliveryRepository.findByOrderId(orderId).orElseThrow();
         assertEquals(expectedStatus, delivery.getStatus().name());
+    }
+
+    @Then("no delivery should exist for that order")
+    public void noDeliveryShouldExistForThatOrder() {
+        assertTrue(deliveryRepository.findByOrderId(orderId).isEmpty());
     }
 
     @Then("the assigned driver status should be {string}")
@@ -152,5 +167,10 @@ public class DispatchAssignmentSteps {
     @Then("the available stock should be {double} units")
     public void theAvailableStockShouldBeUnits(double expectedStock) {
         assertEquals(expectedStock, inventoryService.stockOf(productId));
+    }
+
+    @Then("the order status in Ordering should be {string}")
+    public void theOrderStatusInOrderingShouldBe(String expectedStatus) {
+        assertEquals(expectedStatus, orderingService.statusOf(orderId));
     }
 }
