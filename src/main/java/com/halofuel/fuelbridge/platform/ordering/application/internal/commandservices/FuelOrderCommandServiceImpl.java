@@ -17,12 +17,11 @@ import org.springframework.stereotype.Service;
 import java.util.function.Consumer;
 
 /**
- * Coordinates order commands and persistence. Status changes and their domain
- * events belong to the aggregate; handlers invoke its methods before saving.
- * The aggregate guards every transition: confirm, cancel, receive and mark-paid reject an
- * invalid source status with IllegalOrderStateTransitionException (mapped to 409 by
- * OrderingExceptionHandler), while dispatch requires PENDING and rejects other states with a
- * plain IllegalStateException.
+ * The aggregate guards every transition: confirm and cancel reject an invalid source
+ * status with IllegalOrderStateTransitionException (mapped to 409 by
+ * OrderingExceptionHandler). Dispatch, mark-paid and receive are requested by the
+ * Fulfillment and Payment services, so a transition the aggregate rejects is returned
+ * as FUELORDER_CONFLICT (409) instead of an exception.
  */
 @Service
 public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
@@ -63,7 +62,7 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
 
     @Override
     public Result<FuelOrder, ApplicationError> handle(DispatchFuelOrderCommand command) {
-        return updateOrder(command.orderId(), FuelOrder::dispatch);
+        return updateOrderOrConflict(command.orderId(), FuelOrder::dispatch);
     }
 
     @Override
@@ -77,8 +76,8 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
     }
 
     /**
-     * Variant used by the transitions requested by other services (Payment and
-     * Fulfillment): a transition the aggregate rejects is returned as a
+     * Variant used by the transitions requested by other services (dispatch and
+     * receive from Fulfillment, mark-paid from Payment): a transition the aggregate rejects is returned as a
      * FUELORDER_CONFLICT (409) so the caller can tell it apart from a server error.
      */
     private Result<FuelOrder, ApplicationError> updateOrderOrConflict(Long orderId, Consumer<FuelOrder> transition) {
