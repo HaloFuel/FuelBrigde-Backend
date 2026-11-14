@@ -7,6 +7,8 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFue
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.MarkFuelOrderPaidCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ReceiveFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
@@ -60,6 +62,35 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
     @Override
     public Result<FuelOrder, ApplicationError> handle(DispatchFuelOrderCommand command) {
         return updateOrder(command.orderId(), FuelOrder::dispatch);
+    }
+
+    @Override
+    public Result<FuelOrder, ApplicationError> handle(MarkFuelOrderPaidCommand command) {
+        return updateOrderOrConflict(command.orderId(), FuelOrder::markPaid);
+    }
+
+    @Override
+    public Result<FuelOrder, ApplicationError> handle(ReceiveFuelOrderCommand command) {
+        return updateOrderOrConflict(command.orderId(), FuelOrder::receive);
+    }
+
+    /**
+     * Variant used by the transitions requested by other services (Payment and
+     * Fulfillment): a transition the aggregate rejects is returned as a
+     * FUELORDER_CONFLICT (409) so the caller can tell it apart from a server error.
+     */
+    private Result<FuelOrder, ApplicationError> updateOrderOrConflict(Long orderId, Consumer<FuelOrder> transition) {
+        var existing = fuelOrderRepository.findById(orderId);
+        if (existing.isEmpty()) {
+            return Result.failure(ApplicationError.notFound("FuelOrder", orderId.toString()));
+        }
+        var order = existing.get();
+        try {
+            transition.accept(order);
+        } catch (IllegalStateException ex) {
+            return Result.failure(ApplicationError.conflict("FuelOrder", ex.getMessage()));
+        }
+        return Result.success(fuelOrderRepository.save(order));
     }
 
     private Result<FuelOrder, ApplicationError> updateOrder(Long orderId, Consumer<FuelOrder> transition) {
