@@ -1,9 +1,9 @@
 /*
  * FuelBridge - C4 Model (Sprint 3)
- * Estado: FuelBridge Platform (IAM, Ordering, Payment) + seis microservicios
- * (Notification, Catalog, Reporting, Equipment, Inventory y Fulfillment).
+ * Estado: FuelBridge Platform (IAM y Ordering) + siete microservicios
+ * (Notification, Catalog, Reporting, Equipment, Inventory, Fulfillment y Payment).
+ * 7 de 9 Bounded Contexts extraídos (77,8 %).
  * Renderizar en https://structurizr.com/dsl
- * Al integrarse Payment Service, mover Payment a su propio contenedor.
  */
 workspace "FuelBridge" "Plataforma B2B de compraventa de combustible de HaloFuel" {
 
@@ -19,8 +19,11 @@ workspace "FuelBridge" "Plataforma B2B de compraventa de combustible de HaloFuel
             landing = container "Landing Page" "Sitio estático de presentación del producto." "HTML, CSS, JavaScript" "Web"
             webApp = container "Web Application" "SPA para solicitantes y proveedores." "Angular" "Web"
 
-            platform = container "FuelBridge Platform" "Monolito residual: IAM, Ordering y Payment; gateways de compatibilidad hacia los microservicios." "Spring Boot 4, Java 26"
-            platformDb = container "fuelbridge_platform" "Usuarios, empresas, pedidos, solicitudes y pagos." "MySQL" "Database"
+            platform = container "FuelBridge Platform" "Monolito residual: IAM y Ordering; gateways de compatibilidad hacia los microservicios." "Spring Boot 4, Java 26"
+            platformDb = container "fuelbridge_platform" "Usuarios, empresas, tokens, solicitudes y pedidos." "MySQL" "Database"
+
+            paymentService = container "Payment Service" "Registro, completado, fallo y reembolso de pagos; solicita a Ordering marcar el pedido como pagado." "Spring Boot 4, Java 26"
+            paymentDb = container "fuelbridge_payment" "Pagos." "MySQL" "Database"
 
             notificationService = container "Notification Service" "Notificaciones in-app por cambios de estado del pedido." "Spring Boot 4, Java 26"
             notificationDb = container "fuelbridge_notification" "Notificaciones." "MySQL" "Database"
@@ -73,6 +76,10 @@ workspace "FuelBridge" "Plataforma B2B de compraventa de combustible de HaloFuel
         platform -> equipmentService "Gateway de equipos" "REST"
         platform -> inventoryService "Gateway de productos y consulta de precios (Ordering)" "REST"
         platform -> fulfillmentService "Gateway de entregas, conductores y vehículos" "REST"
+        platform -> paymentService "Gateway de pagos" "REST"
+
+        paymentService -> paymentDb "Lee y escribe" "JPA/JDBC"
+        paymentService -> platform "Solicita mark-paid del pedido (Ordering)" "REST + JWT del usuario"
 
         notificationService -> notificationDb "Lee y escribe" "JPA/JDBC"
         notificationService -> platform "Resuelve usuarios (IAM)" "REST"
