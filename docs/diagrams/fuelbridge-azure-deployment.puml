@@ -1,0 +1,73 @@
+@startuml fuelbridge_azure_deployment
+title FuelBridge AV4 - Arquitectura Azure propuesta (T09.09)
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+actor "Solicitante / Proveedor" as User
+
+rectangle "Frontend Angular\n(Hosting por definir)" as Frontend
+
+cloud "GitHub Actions\nCI/CD propuesto" as CI
+
+node "Microsoft Azure - Arquitectura objetivo" {
+
+    artifact "Azure Container Registry\n(ACR)" as ACR
+
+    node "Azure Container Apps Environment" as ACA {
+
+        component "FuelBridge Platform\nIAM + Ordering\nIngreso externo" as Platform
+
+        component "Catalog Service" as Catalog
+        component "Notification Service" as Notification
+        component "Reporting Service" as Reporting
+        component "Equipment Service" as Equipment
+        component "Inventory Service" as Inventory
+        component "Payment Service" as Payment
+        component "Fulfillment Service" as Fulfillment
+    }
+
+    database "Azure Database for MySQL\nFlexible Server\n8 esquemas logicos" as MySQL
+}
+
+User --> Frontend : HTTPS
+Frontend --> Platform : HTTPS + JWT
+
+CI ..> ACR : Publicacion de imagenes
+ACR ..> ACA : Imagenes de contenedores
+
+Platform --> Catalog : REST interno
+Platform --> Notification : REST interno
+Platform --> Reporting : REST interno
+Platform --> Equipment : REST interno
+Platform --> Inventory : REST interno
+Platform --> Fulfillment : REST interno
+
+Payment --> Platform : Ordering REST
+Fulfillment --> Platform : Ordering REST
+Fulfillment --> Inventory : Reserva de stock
+Fulfillment --> Equipment : Recepcion de combustible
+
+ACA ..> MySQL : JDBC / TLS\nConectividad privada propuesta
+
+note right of MySQL
+  Esquemas:
+  fuelbridge_platform
+  fuelbridge_catalog
+  fuelbridge_notification
+  fuelbridge_reporting
+  fuelbridge_equipment
+  fuelbridge_inventory
+  fuelbridge_payment
+  fuelbridge_fulfillment
+end note
+
+legend bottom
+  T09.09 - Diseno de despliegue propuesto.
+  No representa recursos ya desplegados en Azure.
+  El despliegue local validado utiliza Docker Compose.
+endlegend
+
+@enduml
