@@ -1,0 +1,129 @@
+name: Azure - Publish Images to ACR
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/azure-acr-publish.yml"
+
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Servicio que se publicara en Azure"
+        required: true
+        type: choice
+        options:
+          - platform
+          - catalog
+          - notification
+          - reporting
+          - equipment
+          - inventory
+          - payment
+          - fulfillment
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Azure publication configuration
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfile paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f Dockerfile
+
+          for service in catalog notification reporting equipment inventory payment fulfillment; do
+            test -f "fuelbridge-${service}-service/Dockerfile"
+          done
+
+          echo "All eight Dockerfile paths are valid."
+          echo "No Azure resources were changed."
+
+  publish:
+    name: Publish selected image to ACR
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    environment: azure-dev
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select service Dockerfile
+        id: config
+        shell: bash
+        env:
+          SERVICE: ${{ inputs.service }}
+        run: |
+          set -euo pipefail
+
+          case "$SERVICE" in
+            platform)
+              FILE="Dockerfile"
+              ;;
+            catalog|notification|reporting|equipment|inventory|payment|fulfillment)
+              FILE="fuelbridge-${SERVICE}-service/Dockerfile"
+              ;;
+            *)
+              echo "Invalid service"
+              exit 1
+              ;;
+          esac
+
+          test -f "$FILE"
+          echo "dockerfile=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate required Azure configuration
+        env:
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in ACR_NAME AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing Azure configuration: $name"
+              exit 1
+            fi
+          done
+
+      - name: Login to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        env:
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Configure Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and publish Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ steps.config.outputs.dockerfile }}
+          push: true
+          tags: ${{ vars.AZURE_ACR_NAME }}.azurecr.io/fuelbridge-${{ inputs.service }}:${{ github.sha }}
