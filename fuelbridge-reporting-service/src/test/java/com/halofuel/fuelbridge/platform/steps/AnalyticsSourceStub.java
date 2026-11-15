@@ -13,6 +13,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code ReportingServiceIntegrationTest}: buyer company 7 has one CONFIRMED
  * order with a COMPLETED 100 payment and one PENDING order with a PENDING 30
  * payment. {@link #UNAVAILABLE} lets scenarios simulate an upstream outage.
+ *
+ * <p>Platform-wide fixtures (TS-27): four orders in total. Provider 202 served
+ * order 1 (CONFIRMED, COMPLETED 100 in January), order 3 (DELIVERED, COMPLETED
+ * 250 in February) and order 4 (CANCELLED, REFUNDED 80). Order 2 is PENDING.
+ * There are two deliveries, one of them DELIVERED. Any other company or
+ * provider has no operations and receives empty lists.
  */
 final class AnalyticsSourceStub {
 
@@ -41,6 +47,19 @@ final class AnalyticsSourceStub {
                     case "/api/v1/payments/company/7" -> """
                             [{"orderId":1,"amount":100,"status":"COMPLETED","paidAt":"2026-01-15T10:00:00"},
                              {"orderId":2,"amount":30,"status":"PENDING","paidAt":null}]""";
+                    case "/api/v1/fuel-orders" -> """
+                            [{"id":1,"status":"CONFIRMED"},{"id":2,"status":"PENDING"},
+                             {"id":3,"status":"DELIVERED"},{"id":4,"status":"CANCELLED"}]""";
+                    case "/api/v1/fuel-orders/provider/202" -> """
+                            [{"id":1,"status":"CONFIRMED"},{"id":3,"status":"DELIVERED"},
+                             {"id":4,"status":"CANCELLED"}]""";
+                    case "/api/v1/payments" -> """
+                            [{"orderId":1,"amount":100,"status":"COMPLETED","paidAt":"2026-01-15T10:00:00"},
+                             {"orderId":2,"amount":30,"status":"PENDING","paidAt":null},
+                             {"orderId":3,"amount":250,"status":"COMPLETED","paidAt":"2026-02-10T09:30:00"},
+                             {"orderId":4,"amount":80,"status":"REFUNDED","paidAt":"2026-02-12T16:00:00"}]""";
+                    case "/api/v1/deliveries" -> """
+                            [{"status":"DELIVERED"},{"status":"DISPATCHED"}]""";
                     default -> "[]";
                 };
                 byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
