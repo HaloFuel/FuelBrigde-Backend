@@ -1,5 +1,10 @@
 package com.halofuel.fuelbridge.platform;
 
+import com.sun.net.httpserver.HttpServer;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import com.halofuel.fuelbridge.platform.equipment.infrastructure.persistence.jpa.repositories.EquipmentPersistenceRepository;
 import com.halofuel.fuelbridge.platform.equipment.infrastructure.security.tokens.jwt.BearerTokenService;
 import io.jsonwebtoken.Jwts;
@@ -27,9 +32,30 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("test")
 class EquipmentServiceIntegrationTest {
     private static final String SECRET = "test-secret-for-service-jwt-validation-at-least-64-bytes-long!!!!!!";
+    private static final HttpServer IAM = startIam();
     @LocalServerPort private int port;
     @Autowired private BearerTokenService tokens;
     @Autowired private EquipmentPersistenceRepository repository;
+
+    private static HttpServer startIam() {
+        try {
+            var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/api/v1/provider-companies/", exchange -> {
+                String path = exchange.getRequestURI().getPath();
+                exchange.sendResponseHeaders(path.endsWith("/99") ? 404 : 200, -1);
+                exchange.close();
+            });
+            server.start();
+            return server;
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @DynamicPropertySource
+    static void properties(DynamicPropertyRegistry registry) {
+        registry.add("fuelbridge.api.url", () -> "http://127.0.0.1:" + IAM.getAddress().getPort());
+    }
 
     @BeforeEach void clearEquipment() { repository.deleteAll(); }
 

@@ -28,6 +28,9 @@ import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.transform.Equi
 import com.halofuel.fuelbridge.platform.equipment.interfaces.rest.transform.UpdateEquipmentCommandFromResourceAssembler;
 import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ResponseEntityAssembler;
 import com.halofuel.fuelbridge.platform.equipment.domain.repositories.EquipmentRepository;
+import com.halofuel.fuelbridge.platform.equipment.application.outboundservices.ProviderDirectory;
+import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
+import com.halofuel.fuelbridge.platform.shared.interfaces.rest.transform.ErrorResponseAssembler;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -44,13 +47,16 @@ public class EquipmentController {
     private final EquipmentCommandService equipmentCommandService;
     private final EquipmentQueryService equipmentQueryService;
     private final EquipmentRepository equipmentRepository;
+    private final ProviderDirectory providerDirectory;
 
     public EquipmentController(EquipmentCommandService equipmentCommandService,
                                EquipmentQueryService equipmentQueryService,
-                               EquipmentRepository equipmentRepository) {
+                               EquipmentRepository equipmentRepository,
+                               ProviderDirectory providerDirectory) {
         this.equipmentCommandService = equipmentCommandService;
         this.equipmentQueryService = equipmentQueryService;
         this.equipmentRepository = equipmentRepository;
+        this.providerDirectory = providerDirectory;
     }
 
     @Operation(
@@ -70,19 +76,29 @@ public class EquipmentController {
         @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Solicitud inválida para asignar proveedor favorito", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VALIDATION_ERROR\",\"message\":\"Solicitud inválida para asignar proveedor favorito\",\"details\":\"El equipo Excavadora CAT 320 debe incluir los datos obligatorios y pertenecer a la empresa compradora.\"}"))),
         @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
         @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
-        @ApiResponse(responseCode = "404", description = "Recurso no encontrado: sin cuerpo de respuesta.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El equipo o el proveedor no existen.", content = @Content(mediaType = "application/json", examples = { @ExampleObject(name = "equipo", summary = "Equipo no encontrado", value = "{\"code\":\"EQUIPMENT_NOT_FOUND\",\"message\":\"Equipment not found: 305\"}"), @ExampleObject(name = "proveedor", summary = "Proveedor no encontrado", value = "{\"code\":\"PROVIDER_NOT_FOUND\",\"message\":\"Provider not found: 999\"}") })),
+        @ApiResponse(responseCode = "502", description = "No se pudo consultar a Identity & Access para verificar el proveedor.", content = @Content),
         @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia; puede incluir una transición de estado no permitida.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: asignar proveedor favorito", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: asignar proveedor favorito\",\"details\":\"Ocurrió un error al procesar los datos de equipo en FuelBridge.\"}")))
     })
     @PostMapping("/{equipmentId}/favorite-provider")
-    public ResponseEntity<EquipmentResource> assignFavoriteProvider(
+    public ResponseEntity<?> assignFavoriteProvider(
             @PathVariable Long equipmentId, @RequestBody FavoriteProviderResource resource) {
-        return equipmentRepository.findById(equipmentId)
-                .map(equipment -> {
-                    equipment.assignFavoriteProvider(resource.providerId());
-                    var saved = equipmentRepository.save(equipment);
-                    return ResponseEntity.ok(EquipmentResourceFromEntityAssembler.toResourceFromEntity(saved));
-                })
-                .orElse(ResponseEntity.notFound().build());
+        if (resource.providerId() == null) {
+            return ErrorResponseAssembler.toErrorResponseFromApplicationError(
+                    ApplicationError.validationError("providerId", "A provider must be indicated"));
+        }
+        var equipment = equipmentRepository.findById(equipmentId);
+        if (equipment.isEmpty()) {
+            return ErrorResponseAssembler.toErrorResponseFromApplicationError(
+                    ApplicationError.notFound("Equipment", String.valueOf(equipmentId)));
+        }
+        if (!providerDirectory.providerExists(resource.providerId())) {
+            return ErrorResponseAssembler.toErrorResponseFromApplicationError(
+                    ApplicationError.notFound("Provider", String.valueOf(resource.providerId())));
+        }
+        equipment.get().assignFavoriteProvider(resource.providerId());
+        var saved = equipmentRepository.save(equipment.get());
+        return ResponseEntity.ok(EquipmentResourceFromEntityAssembler.toResourceFromEntity(saved));
     }
 
     @Operation(
