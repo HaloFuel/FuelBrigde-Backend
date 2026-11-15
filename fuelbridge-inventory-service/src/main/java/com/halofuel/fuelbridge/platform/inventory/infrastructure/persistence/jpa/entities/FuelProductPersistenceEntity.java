@@ -14,6 +14,10 @@ import lombok.Setter;
 @NoArgsConstructor
 public class FuelProductPersistenceEntity extends AuditableAbstractPersistenceEntity {
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(nullable = false)
     private String name;
 
