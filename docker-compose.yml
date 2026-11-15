@@ -209,5 +209,37 @@ services:
         condition: service_healthy
 
 
+
+  # Payment Service - Gestion de pagos
+  payment:
+    build:
+      context: .
+      dockerfile: fuelbridge-payment-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8086:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_payment
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Ordering permanece en el monolito
+      ORDERING_SERVICE_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
 volumes:
   mysql_data:
