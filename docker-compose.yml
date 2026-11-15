@@ -51,6 +51,7 @@ services:
       EQUIPMENT_SERVICE_URL: http://equipment:8080
       INVENTORY_SERVICE_URL: http://inventory:8080
       FULFILLMENT_SERVICE_URL: http://fulfillment:8080
+      PAYMENT_SERVICE_URL: http://payment:8080
 
     depends_on:
       mysql:
