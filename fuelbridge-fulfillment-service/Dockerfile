@@ -3,7 +3,7 @@ WORKDIR /app
 
 COPY fuelbridge-fulfillment-service/.mvn/ fuelbridge-fulfillment-service/.mvn/
 COPY fuelbridge-fulfillment-service/mvnw fuelbridge-fulfillment-service/mvnw
-RUN chmod +x fuelbridge-fulfillment-service/mvnw
+RUN sed -i 's/\r$//' fuelbridge-fulfillment-service/mvnw && chmod +x fuelbridge-fulfillment-service/mvnw
 
 # shared-kernel no esta publicado en un repo remoto, hay que instalarlo local antes de compilar el servicio
 COPY fuelbridge-shared-kernel/pom.xml fuelbridge-shared-kernel/pom.xml
