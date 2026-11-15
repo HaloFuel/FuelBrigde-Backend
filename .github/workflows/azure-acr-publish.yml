@@ -126,4 +126,4 @@ jobs:
           context: .
           file: ${{ steps.config.outputs.dockerfile }}
           push: true
-          tags: ${{ vars.AZURE_ACR_NAME }}.azurecr.io/fuelbridge-${{ inputs.service }}:${{ github.sha }}
+          tags: ${{ vars.AZURE_ACR_LOGIN_SERVER }}/fuelbridge-${{ inputs.service }}:${{ github.sha }}
