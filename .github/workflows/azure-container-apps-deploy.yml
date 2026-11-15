@@ -1,0 +1,182 @@
+name: Azure - Deploy Container Apps
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/azure-container-apps-deploy.yml"
+
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Servicio FuelBridge"
+        required: true
+        type: choice
+        options:
+          - platform
+          - catalog
+          - notification
+          - reporting
+          - equipment
+          - inventory
+          - payment
+          - fulfillment
+
+      app_name:
+        description: "Nombre real del Azure Container App"
+        required: true
+        type: string
+
+      image_tag:
+        description: "SHA de 40 caracteres de la imagen publicada en ACR"
+        required: true
+        type: string
+
+      confirm_deploy:
+        description: "Confirmar despliegue real"
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate deployment preparation
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Azure workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f .github/workflows/azure-acr-publish.yml
+          test -f .github/workflows/azure-image-validation.yml
+          test -f .github/workflows/azure-container-apps-deploy.yml
+
+          echo "Azure deployment workflow files found."
+          echo "No Azure resources were modified."
+
+  deploy:
+    name: Deploy selected Container App
+    needs: validate
+
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/develop' &&
+      inputs.confirm_deploy == 'yes'
+
+    runs-on: ubuntu-24.04
+    environment: azure-dev
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Validate deployment inputs
+        shell: bash
+        env:
+          SERVICE: ${{ inputs.service }}
+          APP_NAME: ${{ inputs.app_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          case "$SERVICE" in
+            platform|catalog|notification|reporting|equipment|inventory|payment|fulfillment)
+              ;;
+            *)
+              echo "Invalid service"
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "$APP_NAME" ]]; then
+            echo "Container App name is required."
+            exit 1
+          fi
+
+          if [[ ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Image tag must be a 40-character Git SHA."
+            exit 1
+          fi
+
+      - name: Validate Azure configuration
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+
+          for name in RESOURCE_GROUP ACR_NAME CLIENT_ID TENANT_ID SUBSCRIPTION_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing Azure configuration: $name"
+              exit 1
+            fi
+          done
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure resources and image
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+          SERVICE: ${{ inputs.service }}
+          APP_NAME: ${{ inputs.app_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          az extension add --name containerapp --upgrade --yes
+
+          az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --output none
+
+          az acr repository show-tags \
+            --name "$ACR_NAME" \
+            --repository "fuelbridge-$SERVICE" \
+            --output tsv | grep -Fx "$IMAGE_TAG"
+
+          echo "Container App and image verified."
+
+      - name: Deploy container image
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+          SERVICE: ${{ inputs.service }}
+          APP_NAME: ${{ inputs.app_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="${ACR_NAME}.azurecr.io/fuelbridge-${SERVICE}:${IMAGE_TAG}"
+
+          az containerapp update \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE" \
+            --only-show-errors
+
+          echo "Container App update submitted."
