@@ -49,6 +49,10 @@ jobs:
             dir: fuelbridge-equipment-service
           - name: Inventory service
             dir: fuelbridge-inventory-service
+          - name: Payment service
+            dir: fuelbridge-payment-service
+          - name: Fulfillment service
+            dir: fuelbridge-fulfillment-service
           - name: Residual monolith
             dir: .
     steps:
