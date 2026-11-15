@@ -1,5 +1,6 @@
 package com.halofuel.fuelbridge.platform;
 
+import com.halofuel.fuelbridge.platform.inventory.domain.repositories.FuelProductRepository;
 import com.halofuel.fuelbridge.platform.inventory.infrastructure.persistence.jpa.repositories.FuelProductPersistenceRepository;
 import com.halofuel.fuelbridge.platform.inventory.infrastructure.security.tokens.jwt.BearerTokenService;
 import io.jsonwebtoken.Jwts;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,6 +31,7 @@ class InventoryServiceIntegrationTest {
     @LocalServerPort private int port;
     @Autowired private BearerTokenService tokens;
     @Autowired private FuelProductPersistenceRepository repository;
+    @Autowired private FuelProductRepository domainRepository;
 
     @BeforeEach void clearProducts() { repository.deleteAll(); }
 
@@ -102,6 +105,28 @@ class InventoryServiceIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("quantity", 300))
                 .retrieve().body(Map.class);
         assertEquals(1000.0, stock(released));
+    }
+
+    /**
+     * Two operations may read the same stock before either saves.
+     * The second stale write must be rejected instead of silently overwriting the first.
+     */
+    @Test
+    void rejectsStaleConcurrentReservationsWithoutLosingStock() {
+        var client = client(tokens.generateToken("fuelbridge-fulfillment"));
+        var created = create(client, "Diésel B5", 202, 100);
+        var productId = id(created);
+
+        var first = domainRepository.findById(productId).orElseThrow();
+        var second = domainRepository.findById(productId).orElseThrow();
+        assertTrue(first.reserveStock(80.0));
+        assertTrue(second.reserveStock(80.0));
+
+        domainRepository.save(first);
+        assertThrows(OptimisticLockingFailureException.class, () -> domainRepository.save(second));
+
+        var persisted = domainRepository.findById(productId).orElseThrow();
+        assertEquals(20.0, persisted.getAvailableStock());
     }
 
     @Test

@@ -1,4 +1,3 @@
-
 package com.halofuel.fuelbridge.platform.inventory.interfaces.rest;
 
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
@@ -14,6 +13,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.text.MessageFormat;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
+
+import jakarta.persistence.OptimisticLockException;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 @RestControllerAdvice
 @NullMarked
@@ -95,6 +97,25 @@ public class GlobalExceptionHandler {
         return ErrorResponseAssembler
                 .toErrorResponseFromApplicationError(applicationError);
     }
+
+
+
+    // Retorna HTTP 409 cuando una transaccion intenta
+    // modificar un producto con una version desactualizada.
+    @ExceptionHandler({
+            OptimisticLockingFailureException.class,
+            OptimisticLockException.class
+    })
+    public ResponseEntity<?> handleOptimisticLocking(Exception ex) {
+        var applicationError = ApplicationError.conflict(
+                "FuelProduct",
+                "Stock was modified by another transaction. Please retry."
+        );
+
+        return ErrorResponseAssembler
+                .toErrorResponseFromApplicationError(applicationError);
+    }
+
 
     // Maneja errores inesperados en tiempo de ejecucion.
     @ExceptionHandler(RuntimeException.class)
