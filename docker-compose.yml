@@ -56,5 +56,35 @@ services:
       mysql:
         condition: service_healthy
 
+
+  # Catalog Service - Microservicio independiente
+  catalog:
+    build:
+      context: .
+      dockerfile: fuelbridge-catalog-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8081:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_catalog
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET}
+      FUELBRIDGE_API_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
 volumes:
   mysql_data:
