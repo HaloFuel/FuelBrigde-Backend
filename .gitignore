@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Docker Compose: no publicar credenciales locales
+.env
+.env.*
+!.env.example
