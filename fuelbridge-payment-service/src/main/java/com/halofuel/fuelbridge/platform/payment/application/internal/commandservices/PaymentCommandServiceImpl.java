@@ -8,7 +8,8 @@ import com.halofuel.fuelbridge.platform.payment.domain.model.commands.FailPaymen
 import com.halofuel.fuelbridge.platform.payment.domain.model.commands.RefundPaymentCommand;
 import com.halofuel.fuelbridge.platform.payment.domain.model.valueobjects.PaymentStatus;
 import com.halofuel.fuelbridge.platform.payment.domain.repositories.PaymentRepository;
-import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
+import com.halofuel.fuelbridge.platform.payment.application.outboundservices.FuelOrders;
+import com.halofuel.fuelbridge.platform.payment.application.outboundservices.FuelOrders.TransitionOutcome;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 import org.springframework.stereotype.Service;
@@ -18,12 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentCommandServiceImpl implements PaymentCommandService {
 
     private final PaymentRepository paymentRepository;
-    private final FuelOrderRepository fuelOrderRepository;
+    private final FuelOrders fuelOrders;
 
     public PaymentCommandServiceImpl(PaymentRepository paymentRepository,
-                                     FuelOrderRepository fuelOrderRepository) {
+                                     FuelOrders fuelOrders) {
         this.paymentRepository = paymentRepository;
-        this.fuelOrderRepository = fuelOrderRepository;
+        this.fuelOrders = fuelOrders;
     }
 
     @Override
@@ -45,15 +46,22 @@ public class PaymentCommandServiceImpl implements PaymentCommandService {
             return Result.failure(ApplicationError.notFound("Payment", command.paymentId().toString()));
         }
         var payment = existing.get();
-        var order = fuelOrderRepository.findById(payment.getOrderId());
-        if (order.isEmpty()) {
-            return Result.failure(ApplicationError.notFound("FuelOrder", payment.getOrderId().toString()));
+        var outcome = fuelOrders.markPaid(payment.getOrderId());
+        if (outcome != TransitionOutcome.APPLIED) {
+            return Result.failure(transitionError(outcome, payment.getOrderId()));
         }
         payment.complete(command.transactionReference());
-        var paidOrder = order.get();
-        paidOrder.markPaid();
-        fuelOrderRepository.save(paidOrder);
         return Result.success(paymentRepository.save(payment));
+    }
+
+    private static ApplicationError transitionError(TransitionOutcome outcome, Long orderId) {
+        return switch (outcome) {
+            case REJECTED -> ApplicationError.conflict("Payment",
+                    "Ordering rejected marking order %d as paid".formatted(orderId));
+            case ORDER_NOT_FOUND -> ApplicationError.notFound("FuelOrder", orderId.toString());
+            default -> ApplicationError.unexpected("Ordering service",
+                    "The Ordering service could not be reached; the payment was not completed");
+        };
     }
 
     @Override
