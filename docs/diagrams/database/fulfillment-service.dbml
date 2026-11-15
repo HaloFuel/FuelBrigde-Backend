@@ -40,8 +40,8 @@ Table deliveries {
   id bigint [pk, increment]
   order_id bigint [not null, note: 'Pedido de Ordering (fuel_orders en fuelbridge_platform); una entrega por pedido']
   provider_id bigint [not null]
-  driver_id bigint [not null]
-  vehicle_id bigint [not null]
+  driver_id bigint [not null, note: 'Referencia escalar a drivers.id']
+  vehicle_id bigint [not null, note: 'Referencia escalar a vehicles.id']
   status varchar(255) [not null, note: 'SCHEDULED | DISPATCHED | DELIVERED | FAILED']
   scheduled_date varchar(255)
   dispatched_at datetime
@@ -51,5 +51,5 @@ Table deliveries {
   updated_at datetime [not null]
 }
 
-Ref: deliveries.driver_id > drivers.id
-Ref: deliveries.vehicle_id > vehicles.id
+// Sin líneas Ref: según la convención de 4.1.5, solo se dibuja FK cuando existe una
+// asociación JPA. driver_id, vehicle_id, order_id y provider_id son referencias escalares.
