@@ -12,6 +12,7 @@ public final class FuelProductPersistenceAssembler {
         if (entity == null) return null;
         var domain = new FuelProduct();
         domain.setId(entity.getId());
+        domain.setVersion(entity.getVersion());
         domain.setName(entity.getName());
         domain.setFuelType(entity.getFuelType());
         domain.setPricePerUnit(entity.getPricePerUnit());
@@ -26,9 +27,12 @@ public final class FuelProductPersistenceAssembler {
     public static FuelProductPersistenceEntity toPersistenceFromDomain(FuelProduct domain) {
         if (domain == null) return null;
         var entity = new FuelProductPersistenceEntity();
+        
         if (domain.getId() != null) {
-            entity.setId(domain.getId());
+        entity.setId(domain.getId());
+        entity.setVersion(domain.getVersion());
         }
+
         entity.setName(domain.getName());
         entity.setFuelType(domain.getFuelType());
         entity.setPricePerUnit(domain.getPricePerUnit());

@@ -15,6 +15,7 @@ import lombok.Setter;
 public class FuelProduct extends AbstractDomainAggregateRoot<FuelProduct> {
 
     private Long id;
+    private Long version;
     private String name;
     private FuelType fuelType;
     private Double pricePerUnit;
