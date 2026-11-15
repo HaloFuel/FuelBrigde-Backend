@@ -241,5 +241,45 @@ services:
         condition: service_healthy
 
 
+
+  # Fulfillment Service - Gestion de despachos y entregas
+  fulfillment:
+    build:
+      context: .
+      dockerfile: fuelbridge-fulfillment-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8087:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_fulfillment
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Comunicacion REST entre microservicios
+      ORDERING_SERVICE_URL: http://platform:8080
+      INVENTORY_SERVICE_URL: http://inventory:8080
+      EQUIPMENT_SERVICE_URL: http://equipment:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      platform:
+        condition: service_started
+      inventory:
+        condition: service_started
+      equipment:
+        condition: service_started
+
+
 volumes:
   mysql_data:
