@@ -54,6 +54,10 @@ wait_for_app_ready() {
       echo "    $name is ready"
       return 0
     fi
+    if curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/v3/api-docs" 2>/dev/null | grep -q '^200$'; then
+      echo "    $name is ready"
+      return 0
+    fi
     if (( elapsed >= POLL_TIMEOUT )); then
       echo "ERROR: $name did not become ready within ${POLL_TIMEOUT}s" >&2
       return 1
