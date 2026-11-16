@@ -108,45 +108,6 @@
           ]
         },
         {
-          "name": "Cerrar sesión",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/authentication/sign-out",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "authentication",
-                "sign-out"
-              ]
-            },
-            "description": "Revoca el JWT enviado en el encabezado Authorization: guarda su hash SHA-256 en la lista de tokens revocados hasta que expire. Después, cualquier petición con ese token recibe 401. Requiere {{token}}. Tras un 200 el script vacía {{token}}; el token revocado devuelve 401 en cualquier endpoint protegido."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Sign-out returns 200\", function () { pm.response.to.have.status(200); });",
-                  "if (pm.response.code === 200) { pm.environment.set(\"token\", \"\"); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Solicitar recuperación de contraseña",
           "request": {
             "method": "POST",
@@ -3095,6 +3056,45 @@
             "description": "Solicita al microservicio Reporting los KPIs del comprador identificado, incluidos sus gastos mensuales y conteos de pagos."
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cerrar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/authentication/sign-out",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "authentication",
+            "sign-out"
+          ]
+        },
+        "description": "Revoca el JWT enviado en el encabezado Authorization: guarda su hash SHA-256 en la lista de tokens revocados hasta que expire. Después, cualquier petición con ese token recibe 401. Requiere {{token}}. Tras un 200 el script vacía {{token}}; el token revocado devuelve 401 en cualquier endpoint protegido. Se ejecuta al final de toda la colección para no invalidar el token que usan las demás carpetas."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sign-out returns 200\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.environment.set(\"token\", \"\"); }"
+            ]
+          }
         }
       ]
     }
