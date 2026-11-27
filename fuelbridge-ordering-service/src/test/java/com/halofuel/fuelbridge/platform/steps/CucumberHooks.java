@@ -2,10 +2,11 @@ package com.halofuel.fuelbridge.platform.steps;
 
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.FuelOrderPersistenceRepository;
 import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.FuelRequestPersistenceRepository;
+import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.OutboxEventPersistenceRepository;
 import io.cucumber.java.Before;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/** Keeps scenarios independent by clearing orders, requests and the remote stand-ins. */
+/** Keeps scenarios independent by clearing orders, requests, the outbox and the remote stand-ins. */
 public class CucumberHooks {
 
     @Autowired
@@ -13,6 +14,9 @@ public class CucumberHooks {
 
     @Autowired
     private FuelRequestPersistenceRepository requests;
+
+    @Autowired
+    private OutboxEventPersistenceRepository outbox;
 
     @Autowired
     private InventoryHttpStub inventoryService;
@@ -30,6 +34,7 @@ public class CucumberHooks {
     public void clearOrderingData() {
         orders.deleteAll();
         requests.deleteAll();
+        outbox.deleteAll();
         inventoryService.reset();
         notificationService.clear();
         iamService.reset();

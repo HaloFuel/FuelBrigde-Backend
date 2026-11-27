@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,8 +58,10 @@ public class FuelOrderRepositoryImpl implements FuelOrderRepository {
     }
 
     @Override
+    @Transactional
     public FuelOrder save(FuelOrder fuelOrder) {
 
+        // T10.04b: one transaction for the order and the outbox rows its events produce.
         var entity = FuelOrderPersistenceAssembler.toPersistenceFromDomain(fuelOrder);
         var savedEntity = fuelOrderPersistenceRepository.save(entity);
 
