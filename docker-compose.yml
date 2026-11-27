@@ -282,5 +282,44 @@ services:
         condition: service_started
 
 
+
+  # Ordering Service - Solicitudes y pedidos de combustible
+  ordering:
+    build:
+      context: .
+      dockerfile: fuelbridge-ordering-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8088:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_ordering
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Comunicacion REST entre microservicios
+      INVENTORY_SERVICE_URL: http://inventory:8080
+      NOTIFICATION_SERVICE_URL: http://notification:8080
+      # IAM sigue en el monolito hasta que se extraiga (T10.01)
+      IAM_SERVICE_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      inventory:
+        condition: service_started
+      notification:
+        condition: service_started
+
+
 volumes:
   mysql_data:

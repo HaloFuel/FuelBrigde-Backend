@@ -53,6 +53,8 @@ jobs:
             dir: fuelbridge-payment-service
           - name: Fulfillment service
             dir: fuelbridge-fulfillment-service
+          - name: Ordering service
+            dir: fuelbridge-ordering-service
           - name: Residual monolith
             dir: .
     steps:

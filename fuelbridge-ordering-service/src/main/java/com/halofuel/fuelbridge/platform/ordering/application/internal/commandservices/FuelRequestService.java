@@ -1,0 +1,115 @@
+package com.halofuel.fuelbridge.platform.ordering.application.internal.commandservices;
+
+import com.halofuel.fuelbridge.platform.ordering.application.outboundservices.FuelProductCatalog;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.exceptions.IllegalOrderStateTransitionException;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.RequestStatus;
+import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
+import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.entities.FuelRequestPersistenceEntity;
+import com.halofuel.fuelbridge.platform.ordering.infrastructure.persistence.jpa.repositories.FuelRequestPersistenceRepository;
+import com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.CreateFuelRequestResource;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class FuelRequestService {
+    private final FuelRequestPersistenceRepository requests;
+    private final FuelProductCatalog products;
+    private final FuelOrderRepository orders;
+
+    public FuelRequestService(FuelRequestPersistenceRepository requests,
+                              FuelProductCatalog products,
+                              FuelOrderRepository orders) {
+        this.requests = requests;
+        this.products = products;
+        this.orders = orders;
+    }
+
+    @Transactional
+    public FuelRequestPersistenceEntity create(CreateFuelRequestResource resource) {
+        requireCompleteRequest(resource);
+        var product = products.findById(resource.fuelProductId())
+                .orElseThrow(() -> new IllegalArgumentException("Fuel product not found"));
+        if (!product.providerId().equals(resource.providerId())) {
+            throw new IllegalArgumentException("Fuel product does not belong to provider");
+        }
+        var request = new FuelRequestPersistenceEntity();
+        request.setBuyerCompanyId(resource.buyerCompanyId());
+        request.setProviderId(resource.providerId());
+        request.setEquipmentId(resource.equipmentId());
+        request.setFuelProductId(resource.fuelProductId());
+        request.setFuelType(product.fuelType());
+        request.setProductName(product.name());
+        request.setQuantity(resource.quantity());
+        request.setUnit(resource.unit() == null ? product.unit() : resource.unit());
+        request.setUnitPrice(product.pricePerUnit());
+        request.setDeliveryAddress(resource.deliveryAddress());
+        request.setDeliveryDate(resource.deliveryDate());
+        request.setStatus(RequestStatus.PENDING);
+        request.setSource(resource.source() == null ? "MANUAL" : resource.source().toUpperCase());
+        return requests.save(request);
+    }
+
+    /** Checked before calling Inventory, so an incomplete request answers 400 instead of 500. */
+    private static void requireCompleteRequest(CreateFuelRequestResource resource) {
+        if (resource.buyerCompanyId() == null) throw new IllegalArgumentException("buyerCompanyId is required");
+        if (resource.providerId() == null) throw new IllegalArgumentException("providerId is required");
+        if (resource.fuelProductId() == null) throw new IllegalArgumentException("fuelProductId is required");
+        if (resource.quantity() == null || resource.quantity() <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than zero");
+        }
+        if (resource.deliveryAddress() == null || resource.deliveryAddress().isBlank()) {
+            throw new IllegalArgumentException("deliveryAddress is required");
+        }
+        if (resource.deliveryDate() == null) throw new IllegalArgumentException("deliveryDate is required");
+    }
+
+    public Optional<FuelRequestPersistenceEntity> findById(Long requestId) {
+        return requests.findById(requestId);
+    }
+
+    public List<FuelRequestPersistenceEntity> findAll(Long buyerCompanyId, Long providerId) {
+        if (buyerCompanyId != null) return requests.findByBuyerCompanyId(buyerCompanyId);
+        if (providerId != null) return requests.findByProviderId(providerId);
+        return requests.findAll();
+    }
+
+    @Transactional
+    public FuelOrder accept(Long requestId) {
+        var request = requests.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Fuel request not found"));
+        if (request.getStatus() != RequestStatus.PENDING) {
+            throw new IllegalOrderStateTransitionException(request.getStatus(), RequestStatus.APPROVED);
+        }
+        var product = products.findById(request.getFuelProductId())
+                .orElseThrow(() -> new IllegalArgumentException("Fuel product not found"));
+        var command = new CreateFuelOrderCommand(request.getBuyerCompanyId(), request.getProviderId(),
+                request.getFuelProductId(), request.getEquipmentId(), request.getQuantity(),
+                request.getDeliveryAddress(), request.getDeliveryDate());
+        var order = new FuelOrder(command, product.pricePerUnit() * request.getQuantity());
+        order.setRequestId(requestId);
+        order = orders.save(order);
+        request.setStatus(RequestStatus.APPROVED);
+        requests.save(request);
+        return order;
+    }
+
+    @Transactional
+    public FuelRequestPersistenceEntity reject(Long requestId, String reason) {
+        var request = requests.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Fuel request not found"));
+        if (request.getStatus() != RequestStatus.PENDING) {
+            throw new IllegalOrderStateTransitionException(request.getStatus(), RequestStatus.REJECTED);
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Rejection reason is required");
+        }
+        request.setStatus(RequestStatus.REJECTED);
+        request.setRejectionReason(reason.trim());
+        return requests.save(request);
+    }
+}
