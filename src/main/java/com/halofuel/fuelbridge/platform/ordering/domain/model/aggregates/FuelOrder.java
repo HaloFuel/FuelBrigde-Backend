@@ -69,6 +69,15 @@ public class FuelOrder extends AbstractDomainAggregateRoot<FuelOrder> {
         registerDomainEvent(new FuelOrderDispatchedEvent(this.id, this.companyId));
     }
 
+    /**
+     * Saga compensation (T10.05): Fulfillment returns a DISPATCHED order to PENDING when
+     * its own transaction fails after Ordering already applied the dispatch.
+     */
+    public void revertDispatch() {
+        requireStatus(OrderStatus.PENDING, OrderStatus.DISPATCHED);
+        this.status = OrderStatus.PENDING;
+    }
+
     public void receive() {
         requireStatus(OrderStatus.PENDING_PAYMENT, OrderStatus.DISPATCHED);
         this.status = OrderStatus.PENDING_PAYMENT;

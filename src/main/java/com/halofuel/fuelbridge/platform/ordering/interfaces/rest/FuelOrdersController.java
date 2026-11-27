@@ -17,6 +17,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFu
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.MarkFuelOrderPaidCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ReceiveFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.RevertFuelOrderDispatchCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetAllFuelOrdersQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrderByIdQuery;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.queries.GetFuelOrdersByCompanyIdQuery;
@@ -212,6 +213,39 @@ public class FuelOrdersController {
     @PostMapping("/{orderId}/receive")
     public ResponseEntity<?> receiveOrder(@PathVariable Long orderId) {
         var result = fuelOrderCommandService.handle(new ReceiveFuelOrderCommand(orderId));
+
+        return ResponseEntityAssembler.toResponseEntityFromResult(
+                result,
+                FuelOrderResourceFromEntityAssembler::toResourceFromEntity,
+                HttpStatus.OK);
+    }
+
+    /**
+     * Sprint 4 - T10.05: compensación de la Saga de entrega.
+     *
+     * Fulfillment la invoca cuando su transacción local falla después de que Ordering
+     * ya aplicó el despacho, para devolver el pedido de DISPATCHED a PENDING.
+     *
+     * @param orderId identificador del pedido de combustible
+     * @return respuesta HTTP con el pedido actualizado
+     */
+    @Operation(
+        summary = "Revertir despacho del pedido",
+        description = "Compensación de la Saga de entrega: devuelve un pedido DISPATCHED a PENDING cuando Fulfillment no pudo confirmar la entrega. No requiere cuerpo.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "orderId", in = ParameterIn.PATH, required = true, description = "Identificador del pedido de combustible.", example = "4101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Despacho revertido; el pedido vuelve a PENDING.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.ordering.interfaces.rest.resources.FuelOrderResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":4101,\"requestId\":null,\"companyId\":101,\"providerId\":202,\"fuelProductId\":303,\"equipmentId\":305,\"requestedQuantity\":1000,\"totalPrice\":4800,\"status\":\"PENDING\",\"deliveryAddress\":\"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\"scheduledDate\":\"2026-10-15\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "No se encontró el pedido indicado.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Pedido de combustible no encontrado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_NOT_FOUND\",\"message\":\"Pedido de combustible no encontrado\",\"details\":\"No existe pedido de combustible con identificador 4101.\"}"))),
+        @ApiResponse(responseCode = "409", description = "El pedido no está en estado DISPATCHED.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "conflicto", summary = "Pedido no despachado", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"FUELORDER_CONFLICT\",\"message\":\"Conflict with FuelOrder\",\"details\":\"Cannot transition from PENDING to PENDING\"}")))
+    })
+    @PostMapping("/{orderId}/revert-dispatch")
+    public ResponseEntity<?> revertOrderDispatch(@PathVariable Long orderId) {
+        var result = fuelOrderCommandService.handle(new RevertFuelOrderDispatchCommand(orderId));
 
         return ResponseEntityAssembler.toResponseEntityFromResult(
                 result,
