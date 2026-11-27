@@ -55,6 +55,8 @@ jobs:
             dir: fuelbridge-fulfillment-service
           - name: Ordering service
             dir: fuelbridge-ordering-service
+          - name: API Gateway
+            dir: fuelbridge-api-gateway
           - name: Residual monolith
             dir: .
     steps:
