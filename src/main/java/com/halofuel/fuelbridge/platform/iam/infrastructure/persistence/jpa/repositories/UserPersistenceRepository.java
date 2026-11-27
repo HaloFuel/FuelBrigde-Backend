@@ -9,7 +9,9 @@ import java.util.Optional;
 @Repository
 public interface UserPersistenceRepository extends JpaRepository<UserPersistenceEntity, Long> {
     Optional<UserPersistenceEntity> findByUsername(String username);
-    Optional<UserPersistenceEntity> findByCompanyId(Long companyId);
+    // First-match query with explicit ordering: a plain findByCompanyId would throw
+    // IncorrectResultSizeDataAccessException if a company ever had more than one user.
+    Optional<UserPersistenceEntity> findFirstByCompanyIdOrderByIdAsc(Long companyId);
     Optional<UserPersistenceEntity> findByProviderId(Long providerId);
     boolean existsByUsername(String username);
 }
