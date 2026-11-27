@@ -61,6 +61,7 @@ public class UserLookupByCompanySteps {
 
     private User registeredUser;
     private final Map<Long, User> usersByCompany = new HashMap<>();
+    private final Map<Long, User> firstUserByCompany = new HashMap<>();
     private MvcResult response;
 
     @Given("a registered user named {string} linked to company {long}")
@@ -71,6 +72,7 @@ public class UserLookupByCompanySteps {
         registeredUser = userRepository.save(user);
         assertNotNull(registeredUser.getId());
         usersByCompany.put(companyId, registeredUser);
+        firstUserByCompany.putIfAbsent(companyId, registeredUser);
     }
 
     @Given("no user is linked to company {long}")
@@ -107,6 +109,21 @@ public class UserLookupByCompanySteps {
     public void theLookupResponseStatusCodeShouldBe(int expectedStatus) {
         assertNotNull(response);
         assertEquals(expectedStatus, response.getResponse().getStatus());
+    }
+
+    @Then("the lookup response should have no body")
+    public void theLookupResponseShouldHaveNoBody() throws Exception {
+        assertEquals("", response.getResponse().getContentAsString());
+    }
+
+    @Then("the lookup response should show the first user registered for company {long}")
+    public void theLookupResponseShouldShowTheFirstUser(Long companyId) throws Exception {
+        JsonNode body = objectMapper.readTree(response.getResponse().getContentAsString());
+        var first = firstUserByCompany.get(companyId);
+        var last = usersByCompany.get(companyId);
+        assertTrue(first.getId() < last.getId(), "the scenario needs two users with different ids");
+        assertEquals(first.getId(), body.get("id").asLong());
+        assertEquals(first.getUsername(), body.get("username").asText());
     }
 
     @Then("the lookup response should not reveal the user linked to company {long}")
