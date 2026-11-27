@@ -134,6 +134,31 @@ class FuelOrderTest {
     }
 
     @Test
+    void revertDispatchReturnsADispatchedOrderToPending() {
+        // Arrange
+        var order = newPendingOrder();
+        order.dispatch();
+
+        // Act
+        order.revertDispatch();
+
+        // Assert
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    @Test
+    void revertDispatchFailsWhenTheOrderIsNotDispatched() {
+        // Arrange
+        var order = newPendingOrder();
+
+        // Act + Assert
+        assertThatThrownBy(order::revertDispatch)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot transition from PENDING to PENDING");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    }
+
+    @Test
     void markPaidMovesANonCancelledOrderToPaid() {
         // Arrange
         var order = newPendingOrder();

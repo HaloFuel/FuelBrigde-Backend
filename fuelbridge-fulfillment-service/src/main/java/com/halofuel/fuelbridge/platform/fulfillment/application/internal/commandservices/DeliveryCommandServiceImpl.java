@@ -19,6 +19,8 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRe
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
@@ -34,11 +36,14 @@ import java.util.Optional;
  * the stock is reserved in Inventory (compensable step), the local changes are written,
  * and the order dispatch requested to Ordering is the last remote step before the local
  * commit. If Ordering rejects the dispatch, the local changes are rolled back and the
- * reservation is released. Completing a delivery registers the fuel receipt in Equipment,
+ * reservation is released. If the local commit fails after the dispatch was applied,
+ * the dispatch is reverted in Ordering and the reservation released. Completing a delivery registers the fuel receipt in Equipment,
  * requests the receive transition to Ordering and only then saves the local changes.</p>
  */
 @Service
 public class DeliveryCommandServiceImpl implements DeliveryCommandService {
+
+    private static final Logger log = LoggerFactory.getLogger(DeliveryCommandServiceImpl.class);
 
     private final DeliveryRepository deliveryRepository;
     private final DriverRepository driverRepository;
@@ -132,6 +137,9 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
                 }
                 return Result.failure(transitionError(dispatch, command.orderId(), "dispatch"));
             }
+            // Compensation (T10.05): if the local commit fails after Ordering applied the
+            // dispatch, the order is returned to PENDING so it can be assigned again.
+            registerDispatchCompensation(command.orderId());
             return Result.success(saved);
         } catch (RuntimeException ex) {
             if (!compensatedByTransaction) {
@@ -154,6 +162,29 @@ public class DeliveryCommandServiceImpl implements DeliveryCommandService {
             }
         });
         return true;
+    }
+
+    /**
+     * Without an active transaction the local changes were already written before the
+     * dispatch, so there is no later commit that could fail and nothing to compensate.
+     */
+    private void registerDispatchCompensation(Long orderId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    return;
+                }
+                var outcome = fuelOrders.revertDispatch(orderId);
+                if (outcome != TransitionOutcome.APPLIED) {
+                    log.error("Saga compensation failed: order {} stays DISPATCHED without a delivery (outcome {})",
+                            orderId, outcome);
+                }
+            }
+        });
     }
 
     private static void rollbackLocalChanges() {

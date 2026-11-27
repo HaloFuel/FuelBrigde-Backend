@@ -22,6 +22,12 @@ public interface FuelOrders {
     /** Requests POST /api/v1/fuel-orders/{orderId}/receive (DISPATCHED to PENDING_PAYMENT). */
     TransitionOutcome receive(Long orderId);
 
+    /**
+     * Saga compensation: requests POST /api/v1/fuel-orders/{orderId}/revert-dispatch
+     * (DISPATCHED to PENDING) when the local transaction fails after the dispatch was applied.
+     */
+    TransitionOutcome revertDispatch(Long orderId);
+
     /** Fields of the Ordering FuelOrderResource that Fulfillment needs. */
     record FuelOrderSnapshot(Long id, Long providerId, Long fuelProductId, Long equipmentId,
                              Double requestedQuantity, String status) {

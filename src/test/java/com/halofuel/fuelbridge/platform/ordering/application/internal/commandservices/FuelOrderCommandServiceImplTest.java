@@ -5,6 +5,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrd
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.RevertFuelOrderDispatchCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
@@ -107,6 +108,35 @@ class FuelOrderCommandServiceImplTest {
         assertTrue(order.domainEvents().isEmpty());
 
         // Verify the invalid change is not saved
+        verify(repository, never()).save(any());
+    }
+
+    /**
+     * Sprint 4 - T10.05: Saga compensation requested by Fulfillment.
+     */
+    @Test
+    void revertDispatchReturnsADispatchedOrderToPending() {
+        var order = pendingOrder(5L);
+        order.setStatus(OrderStatus.DISPATCHED);
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.handle(new RevertFuelOrderDispatchCommand(5L));
+
+        assertSame(order, result.toOptional().orElseThrow());
+        assertEquals(OrderStatus.PENDING, order.getStatus());
+        verify(repository).save(order);
+    }
+
+    @Test
+    void revertDispatchOfAnOrderThatIsNotDispatchedIsAConflict() {
+        var order = pendingOrder(6L);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+
+        var result = service.handle(new RevertFuelOrderDispatchCommand(6L));
+
+        var failure = assertInstanceOf(Result.Failure.class, result);
+        assertEquals("FUELORDER_CONFLICT", ((ApplicationError) failure.error()).code());
+        assertEquals(OrderStatus.PENDING_PAYMENT, order.getStatus());
         verify(repository, never()).save(any());
     }
 

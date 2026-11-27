@@ -63,6 +63,11 @@ public class OrderingServiceFuelOrders implements FuelOrders {
         return transition(ORDERS + "/receive", orderId);
     }
 
+    @Override
+    public TransitionOutcome revertDispatch(Long orderId) {
+        return transition(ORDERS + "/revert-dispatch", orderId);
+    }
+
     private TransitionOutcome transition(String path, Long orderId) {
         try {
             client.post().uri(path, orderId)

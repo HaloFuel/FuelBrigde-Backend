@@ -9,6 +9,7 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFue
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.MarkFuelOrderPaidCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ReceiveFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.RevertFuelOrderDispatchCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
@@ -73,6 +74,11 @@ public class FuelOrderCommandServiceImpl implements FuelOrderCommandService {
     @Override
     public Result<FuelOrder, ApplicationError> handle(ReceiveFuelOrderCommand command) {
         return updateOrderOrConflict(command.orderId(), FuelOrder::receive);
+    }
+
+    @Override
+    public Result<FuelOrder, ApplicationError> handle(RevertFuelOrderDispatchCommand command) {
+        return updateOrderOrConflict(command.orderId(), FuelOrder::revertDispatch);
     }
 
     /**
