@@ -1,5 +1,8 @@
 package com.halofuel.fuelbridge.platform.iam.infrastructure.authorization.sfs.pipeline;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.halofuel.fuelbridge.platform.iam.application.queryservices.RevokedTokenQueryService;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.IsTokenRevokedQuery;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.tokens.jwt.services.TokenServiceImpl;
@@ -8,6 +11,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -19,6 +23,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
@@ -34,7 +39,9 @@ import static org.mockito.Mockito.when;
  * @remarks Usa el TokenServiceImpl real para que la firma y la expiración se validen de verdad, y mocks
  * del UserDetailsService y de la consulta de tokens revocados. Verifica que los tokens de servicio
  * (subject con prefijo fuelbridge-) autentican como ROLE_SERVICE sin consultar usuarios ni revocados,
- * que la firma sigue siendo obligatoria y que los tokens de usuario conservan su flujo.
+ * que la firma sigue siendo obligatoria y que los tokens de usuario conservan su flujo. Los rechazos se
+ * distinguen por la causa que registra TokenServiceImpl (firma inválida, expirado, sin firma, mal formado),
+ * no solo por la ausencia de autenticación, que cualquier excepción produciría.
  * @author HaloFuel
  */
 class BearerAuthorizationRequestFilterTest {
@@ -47,6 +54,8 @@ class BearerAuthorizationRequestFilterTest {
     private RevokedTokenQueryService revokedTokenQueryService;
     private TokenServiceImpl tokenService;
     private BearerAuthorizationRequestFilter filter;
+    private Logger tokenServiceLogger;
+    private ListAppender<ILoggingEvent> tokenServiceLog;
 
     @BeforeEach
     void setUp() {
@@ -57,10 +66,15 @@ class BearerAuthorizationRequestFilterTest {
         ReflectionTestUtils.setField(tokenService, "secret", SECRET);
         ReflectionTestUtils.setField(tokenService, "expirationDays", 7);
         filter = new BearerAuthorizationRequestFilter(tokenService, userDetailsService, revokedTokenQueryService);
+        tokenServiceLogger = (Logger) LoggerFactory.getLogger(TokenServiceImpl.class);
+        tokenServiceLog = new ListAppender<>();
+        tokenServiceLog.start();
+        tokenServiceLogger.addAppender(tokenServiceLog);
     }
 
     @AfterEach
     void tearDown() {
+        tokenServiceLogger.detachAppender(tokenServiceLog);
         SecurityContextHolder.clearContext();
     }
 
@@ -68,6 +82,17 @@ class BearerAuthorizationRequestFilterTest {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + token);
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+    }
+
+    /** Messages TokenServiceImpl logged while validating; each rejection cause has its own prefix. */
+    private List<String> rejectionReasons() {
+        return tokenServiceLog.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    private String unsignedToken(String subject) {
+        var now = System.currentTimeMillis();
+        // No signWith(): the JWT header says alg=none and the signature segment is empty.
+        return Jwts.builder().subject(subject).issuedAt(new Date(now)).expiration(new Date(now + 60_000)).compact();
     }
 
     private String tokenSignedWith(String secret, String subject, Date issuedAt, Date expiration) {
@@ -97,6 +122,7 @@ class BearerAuthorizationRequestFilterTest {
         runFilterWith(forged);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(rejectionReasons()).singleElement().asString().startsWith("Invalid JWT signature");
         verifyNoInteractions(userDetailsService, revokedTokenQueryService);
     }
 
@@ -108,6 +134,54 @@ class BearerAuthorizationRequestFilterTest {
         runFilterWith(expired);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        // Correctly signed, so the only reason left is the expiry: not a signature failure.
+        assertThat(rejectionReasons()).singleElement().asString().startsWith("JWT expired");
+        verifyNoInteractions(userDetailsService, revokedTokenQueryService);
+    }
+
+    @Test
+    void unsignedServiceTokenWithAlgNoneDoesNotAuthenticate() throws Exception {
+        runFilterWith(unsignedToken(SERVICE_SUBJECT));
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(rejectionReasons()).singleElement().asString().startsWith("JWT unsupported");
+        verifyNoInteractions(userDetailsService, revokedTokenQueryService);
+    }
+
+    @Test
+    void unsignedUserTokenDoesNotAuthenticateEither() throws Exception {
+        runFilterWith(unsignedToken("compras.costasur"));
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(rejectionReasons()).singleElement().asString().startsWith("JWT unsupported");
+        verifyNoInteractions(userDetailsService, revokedTokenQueryService);
+    }
+
+    @Test
+    void serviceTokenWithItsSignatureStrippedDoesNotAuthenticate() throws Exception {
+        var valid = new ServiceTokenIssuer(SECRET).issueFor(SERVICE_SUBJECT);
+        var stripped = valid.substring(0, valid.lastIndexOf('.') + 1);
+
+        runFilterWith(stripped);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(rejectionReasons()).singleElement().asString()
+                .startsWith("Invalid JWT: ").contains("missing the required signature");
+        verifyNoInteractions(userDetailsService, revokedTokenQueryService);
+    }
+
+    @Test
+    void serviceTokenWithAForgedSubjectAndTheOriginalSignatureDoesNotAuthenticate() throws Exception {
+        var user = tokenService.generateToken("compras.costasur");
+        var parts = user.split("\\.");
+        var forgedPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                ("{\"sub\":\"" + SERVICE_SUBJECT + "\",\"iat\":1,\"exp\":4102444800}")
+                        .getBytes(StandardCharsets.UTF_8));
+
+        runFilterWith(parts[0] + "." + forgedPayload + "." + parts[2]);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(rejectionReasons()).singleElement().asString().startsWith("Invalid JWT signature");
         verifyNoInteractions(userDetailsService, revokedTokenQueryService);
     }
 

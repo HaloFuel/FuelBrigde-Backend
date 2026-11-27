@@ -7,6 +7,17 @@ COLLECTION="docs/postman/FuelBridge-API.postman_collection.json"
 ENVIRONMENT="docs/postman/FuelBridge-Local.postman_environment.json"
 REPORT="docs/postman/last-run-report.json"
 
+# The service-token requests of the collection sign a short-lived JWT with the same shared secret the
+# stack uses, so the secret is read before anything is started: from the environment or from .env.
+SERVICE_JWT_SECRET="${AUTHORIZATION_JWT_SECRET:-}"
+if [[ -z "$SERVICE_JWT_SECRET" && -f .env ]]; then
+  SERVICE_JWT_SECRET="$(grep -E '^AUTHORIZATION_JWT_SECRET=' .env | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//")"
+fi
+if [[ -z "$SERVICE_JWT_SECRET" ]]; then
+  echo "ERROR: AUTHORIZATION_JWT_SECRET is not set (environment or .env); the service-token requests cannot be signed" >&2
+  exit 1
+fi
+
 POLL_INTERVAL=5
 POLL_TIMEOUT=300
 
@@ -82,9 +93,27 @@ if ! command -v newman >/dev/null 2>&1; then
 fi
 
 echo "==> Running the Postman collection against the live stack"
+NEWMAN_STATUS=0
 newman run "$COLLECTION" \
   -e "$ENVIRONMENT" \
+  --env-var "serviceJwtSecret=$SERVICE_JWT_SECRET" \
   -r cli,json \
-  --reporter-json-export "$REPORT"
+  --reporter-json-export "$REPORT" || NEWMAN_STATUS=$?
+
+# The report is versioned and echoes the environment values, so the secret is scrubbed from it
+# (raw and JSON-escaped forms) before anything can commit it, even when newman failed.
+if [[ -f "$REPORT" ]]; then
+  SECRET_TO_REDACT="$SERVICE_JWT_SECRET" node -e '
+    const fs = require("fs");
+    const file = process.argv[1];
+    const secret = process.env.SECRET_TO_REDACT;
+    let text = fs.readFileSync(file, "utf8");
+    for (const form of [JSON.stringify(secret).slice(1, -1), secret]) {
+      text = text.split(form).join("<redacted>");
+    }
+    fs.writeFileSync(file, text);
+  ' "$REPORT"
+fi
 
 echo "==> Report saved to $REPORT"
+exit "$NEWMAN_STATUS"

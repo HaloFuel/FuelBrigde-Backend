@@ -78,6 +78,10 @@ public class WebSecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         // Must come before the authentication/** permit-all rule below.
                         .requestMatchers(HttpMethod.POST, "/api/v1/authentication/sign-out").authenticated()
+                        // Service-to-service lookup: only tokens issued to services (ROLE_SERVICE) may read it,
+                        // never a user token, so one company cannot read another company's user.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/company/**")
+                                .hasAuthority(BearerAuthorizationRequestFilter.SERVICE_AUTHORITY)
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/buyer-companies",
                                 "/api/v1/provider-companies").permitAll()

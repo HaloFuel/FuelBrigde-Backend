@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "71d40c23-3ebb-59e6-be96-00d75a59e772",
     "name": "FuelBridge API",
-    "description": "Endpoints del monolito FuelBridge (puerto 8080), organizados por bounded context. Los gateways reenvían a los microservicios Catalog, Equipment, Inventory y Reporting. Incluye endpoints de comunicación entre servicios (por ejemplo, Users > Consultar usuario de una empresa, que consumen Ordering y Notification con token de servicio).\n\nUso: importa también FuelBridge-Local.postman_environment.json, selecciona el environment, ejecuta Authentication > Iniciar sesión (guarda {{token}} y {{userId}}) y el resto de peticiones usa Authorization: Bearer {{token}}.",
+    "description": "Endpoints del monolito FuelBridge (puerto 8080), organizados por bounded context. Los gateways reenvían a los microservicios Catalog, Equipment, Inventory y Reporting. Incluye endpoints de comunicación entre servicios (por ejemplo, Users > Consultar usuario de una empresa, que consumen Ordering y Notification con token de servicio: esos requests generan el token con la variable de environment serviceJwtSecret).\n\nUso: importa también FuelBridge-Local.postman_environment.json, selecciona el environment, ejecuta Authentication > Iniciar sesión (guarda {{token}} y {{userId}}) y el resto de peticiones usa Authorization: Bearer {{token}}.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -267,8 +267,31 @@
           "response": []
         },
         {
-          "name": "Consultar usuario de una empresa",
+          "name": "Consultar usuario de una empresa (token de servicio)",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Este endpoint es de uso exclusivo entre servicios: exige un token de servicio (ROLE_SERVICE), no el JWT de usuario.",
+                  "// Se genera aquí uno de 5 minutos, firmado con el mismo secreto compartido que usa el stack (AUTHORIZATION_JWT_SECRET).",
+                  "const secret = pm.environment.get(\"serviceJwtSecret\");",
+                  "if (!secret) {",
+                  "  throw new Error(\"Define serviceJwtSecret en el environment con el valor de AUTHORIZATION_JWT_SECRET: este request requiere un token de servicio.\");",
+                  "}",
+                  "// jjwt elige el algoritmo por el tamaño de la clave: 32+ bytes HS256, 48+ HS384, 64+ HS512.",
+                  "const bytes = CryptoJS.enc.Utf8.parse(secret).sigBytes;",
+                  "const alg = bytes >= 64 ? \"HS512\" : bytes >= 48 ? \"HS384\" : \"HS256\";",
+                  "const b64url = (b64) => b64.replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+                  "const enc = (obj) => b64url(CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(JSON.stringify(obj))));",
+                  "const now = Math.floor(Date.now() / 1000);",
+                  "const unsigned = enc({ alg: alg, typ: \"JWT\" }) + \".\" + enc({ sub: \"fuelbridge-postman\", iat: now, exp: now + 300 });",
+                  "const signature = b64url(CryptoJS.enc.Base64.stringify(CryptoJS[\"Hmac\" + alg.replace(\"HS\", \"SHA\")](unsigned, secret)));",
+                  "pm.variables.set(\"serviceToken\", unsigned + \".\" + signature);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -290,7 +313,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}",
+                "value": "Bearer {{serviceToken}}",
                 "type": "text"
               }
             ],
@@ -314,13 +337,36 @@
                 }
               ]
             },
-            "description": "Endpoint de consumo interno entre servicios: Ordering y Notification lo llaman con un token de servicio (ROLE_SERVICE) para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. Aquí se invoca con el JWT del usuario autenticado. Si la empresa tuviera varios usuarios, devuelve el de menor id. Requiere haber ejecutado antes Authentication > Registrar usuario (crea el usuario de la empresa 101). Responde 200 con id, username, roles, companyId y providerId."
+            "description": "USO EXCLUSIVO ENTRE SERVICIOS: requiere un token de servicio (authority ROLE_SERVICE), no el JWT de usuario; con un JWT de usuario responde 403. Ordering y Notification lo llaman así para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. El script pre-request genera un token de servicio de 5 minutos con la variable de environment serviceJwtSecret (el mismo AUTHORIZATION_JWT_SECRET del stack). Si la empresa tuviera varios usuarios, devuelve el de menor id. Requiere haber ejecutado antes Authentication > Registrar usuario (crea el usuario de la empresa 101). Responde 200 con id, username, roles, companyId y providerId."
           },
           "response": []
         },
         {
-          "name": "Consultar usuario de una empresa sin usuario (404)",
+          "name": "Consultar usuario de una empresa sin usuario (404, token de servicio)",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Este endpoint es de uso exclusivo entre servicios: exige un token de servicio (ROLE_SERVICE), no el JWT de usuario.",
+                  "// Se genera aquí uno de 5 minutos, firmado con el mismo secreto compartido que usa el stack (AUTHORIZATION_JWT_SECRET).",
+                  "const secret = pm.environment.get(\"serviceJwtSecret\");",
+                  "if (!secret) {",
+                  "  throw new Error(\"Define serviceJwtSecret en el environment con el valor de AUTHORIZATION_JWT_SECRET: este request requiere un token de servicio.\");",
+                  "}",
+                  "// jjwt elige el algoritmo por el tamaño de la clave: 32+ bytes HS256, 48+ HS384, 64+ HS512.",
+                  "const bytes = CryptoJS.enc.Utf8.parse(secret).sigBytes;",
+                  "const alg = bytes >= 64 ? \"HS512\" : bytes >= 48 ? \"HS384\" : \"HS256\";",
+                  "const b64url = (b64) => b64.replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+                  "const enc = (obj) => b64url(CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(JSON.stringify(obj))));",
+                  "const now = Math.floor(Date.now() / 1000);",
+                  "const unsigned = enc({ alg: alg, typ: \"JWT\" }) + \".\" + enc({ sub: \"fuelbridge-postman\", iat: now, exp: now + 300 });",
+                  "const signature = b64url(CryptoJS.enc.Base64.stringify(CryptoJS[\"Hmac\" + alg.replace(\"HS\", \"SHA\")](unsigned, secret)));",
+                  "pm.variables.set(\"serviceToken\", unsigned + \".\" + signature);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -338,7 +384,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}",
+                "value": "Bearer {{serviceToken}}",
                 "type": "text"
               }
             ],
@@ -362,7 +408,7 @@
                 }
               ]
             },
-            "description": "Endpoint de consumo interno entre servicios: Ordering y Notification lo llaman con un token de servicio (ROLE_SERVICE) para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. Aquí se invoca con el JWT del usuario autenticado. Si la empresa tuviera varios usuarios, devuelve el de menor id. Con una empresa que no tiene usuario asociado responde 404 sin cuerpo; los servicios clientes lo interpretan como \"la empresa no tiene usuario\"."
+            "description": "USO EXCLUSIVO ENTRE SERVICIOS: requiere un token de servicio (authority ROLE_SERVICE), no el JWT de usuario; con un JWT de usuario responde 403 también para empresas sin usuario. El script pre-request genera el token de servicio con la variable de environment serviceJwtSecret. Con una empresa que no tiene usuario asociado responde 404 sin cuerpo; los servicios clientes lo interpretan como \"la empresa no tiene usuario\"."
           },
           "response": []
         },
