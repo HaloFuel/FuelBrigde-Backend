@@ -24,6 +24,30 @@ services:
       retries: 10
       start_period: 40s
 
+  # Event broker (T10.04a): "order-events" topic exchange between Ordering and Notification
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Define RABBITMQ_DEFAULT_USER en .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Define RABBITMQ_DEFAULT_PASS en .env}
+
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # FuelBridge Platform - Monolito residual
   platform:
     build:
@@ -112,8 +136,16 @@ services:
       AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
       FUELBRIDGE_API_URL: http://platform:8080
 
+      # Event broker (T10.04a): consumes "order-events", not wired to the REST endpoint yet
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?Define RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:?Define RABBITMQ_DEFAULT_PASS}
+
     depends_on:
       mysql:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
 
@@ -312,8 +344,16 @@ services:
       # IAM sigue en el monolito hasta que se extraiga (T10.01)
       IAM_SERVICE_URL: http://platform:8080
 
+      # Event broker (T10.04a): publishes to "order-events", not wired to the outbox yet
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER:?Define RABBITMQ_DEFAULT_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:?Define RABBITMQ_DEFAULT_PASS}
+
     depends_on:
       mysql:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       inventory:
         condition: service_started
