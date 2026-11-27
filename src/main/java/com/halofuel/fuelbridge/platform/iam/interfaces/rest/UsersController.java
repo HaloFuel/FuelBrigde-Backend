@@ -95,16 +95,19 @@ public class UsersController {
 
     @Operation(
         summary = "Consultar usuario de una empresa",
-        description = "Devuelve el usuario asociado a la empresa compradora indicada; si hubiera varios, el de menor id. Lo consumen otros microservicios con token de servicio (ROLE_SERVICE) o los usuarios autenticados.",
+        description = "Endpoint de consumo interno entre servicios: lo usan Ordering y Notification para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. Devuelve el usuario asociado a la empresa; si hubiera varios, el de menor id. Se invoca con un token de servicio (ROLE_SERVICE) emitido con el secreto compartido, aunque también acepta el JWT de un usuario autenticado. Excluye contraseña y tokens.",
         security = { @SecurityRequirement(name = "bearerAuth") },
         parameters = {
-            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora cuyo usuario se consulta.", example = "101")
         }
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Usuario de la empresa.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1101,\"username\":\"compras.costasur\",\"roles\":[\"ROLE_BUYER\"],\"companyId\":101,\"providerId\":null}"))),
-        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado.", content = @Content),
-        @ApiResponse(responseCode = "404", description = "La empresa no tiene usuario asociado: sin cuerpo de respuesta.", content = @Content)
+        @ApiResponse(responseCode = "200", description = "Operación completada correctamente.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1101,\"username\":\"compras.costasur\",\"roles\":[\"ROLE_BUYER\"],\"companyId\":101,\"providerId\":null}"))),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida: revisar identificadores, campos o valores indicados en el cuerpo o los parámetros.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "Solicitud inválida para consultar usuario de una empresa", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"VALIDATION_ERROR\",\"message\":\"Solicitud inválida para consultar usuario de una empresa\",\"details\":\"El parámetro companyId=abc no es un identificador numérico válido de empresa compradora.\"}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado: 401 sin cuerpo de respuesta; el despacho a /error vuelve a pasar por la seguridad actual.", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Origen CORS rechazado: devuelve el texto literal Invalid CORS request sin cabecera Content-Type. Un rechazo de autorización de Spring Security puede no incluir cuerpo.", content = @Content(mediaType = "*/*", schema = @Schema(type = "string"), examples = @ExampleObject(name = "corsRechazado", description = "Texto literal devuelto por el procesador CORS; la respuesta no incluye Content-Type.", value = "Invalid CORS request"))),
+        @ApiResponse(responseCode = "404", description = "La empresa no tiene un usuario asociado: sin cuerpo de respuesta. Los servicios clientes lo interpretan como empresa sin usuario.", content = @Content),
+        @ApiResponse(responseCode = "500", description = "Error al procesar la solicitud o acceder a la persistencia.", content = @Content(mediaType = "application/json", examples = @ExampleObject(name = "error", summary = "No se pudo completar la operación: consultar usuario de una empresa", description = "Ejemplo de error con la estructura ErrorResource (code, message, details).", value = "{\"code\":\"UNEXPECTED_ERROR\",\"message\":\"No se pudo completar la operación: consultar usuario de una empresa\",\"details\":\"Ocurrió un error al procesar los datos de usuario en FuelBridge.\"}")))
     })
     @GetMapping("/company/{companyId}")
     public ResponseEntity<UserResource> getUserByCompanyId(@PathVariable Long companyId) {
