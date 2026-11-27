@@ -2,6 +2,7 @@ package com.halofuel.fuelbridge.platform.iam.infrastructure.authorization.sfs.pi
 
 import com.halofuel.fuelbridge.platform.iam.application.queryservices.RevokedTokenQueryService;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.IsTokenRevokedQuery;
+import com.halofuel.fuelbridge.platform.iam.domain.model.valueobjects.ServiceIdentity;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.authorization.sfs.model.UsernamePasswordAuthenticationTokenBuilder;
 import com.halofuel.fuelbridge.platform.iam.infrastructure.tokens.jwt.BearerTokenService;
 import jakarta.servlet.FilterChain;
@@ -21,9 +22,6 @@ import java.io.IOException;
 
 @Slf4j
 public class BearerAuthorizationRequestFilter extends OncePerRequestFilter {
-
-    /** Subject prefix of the service-to-service tokens issued by the shared-kernel ServiceTokenIssuer. */
-    public static final String SERVICE_SUBJECT_PREFIX = "fuelbridge-";
 
     /** Authority granted to service callers; distinct from every user role. */
     public static final String SERVICE_AUTHORITY = "ROLE_SERVICE";
@@ -50,7 +48,7 @@ public class BearerAuthorizationRequestFilter extends OncePerRequestFilter {
             // below only chooses how to build the authentication AFTER the token is proven valid.
             if (token != null && tokenService.validateToken(token)) {
                 String subject = tokenService.getUsernameFromToken(token);
-                if (subject.startsWith(SERVICE_SUBJECT_PREFIX)) {
+                if (ServiceIdentity.isServiceSubject(subject)) {
                     // Service token: no user lookup and no revocation list (it only holds user sessions).
                     var servicePrincipal = User.withUsername(subject).password("")
                             .authorities(new SimpleGrantedAuthority(SERVICE_AUTHORITY)).build();

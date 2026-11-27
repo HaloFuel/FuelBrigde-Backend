@@ -8,6 +8,7 @@ import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignInCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignUpCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.UpdateUserProfileCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.entities.Role;
+import com.halofuel.fuelbridge.platform.iam.domain.model.valueobjects.ServiceIdentity;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.RoleRepository;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.UserRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
@@ -50,6 +51,11 @@ public class UserCommandServiceImpl implements UserCommandService {
 
     @Override
     public Result<User, ApplicationError> handle(SignUpCommand command) {
+        // Reserved for service tokens: a user token with such a subject would be authenticated as a service.
+        if (ServiceIdentity.isReservedUsername(command.username())) {
+            return Result.failure(ApplicationError.validationError("username",
+                    "Usernames starting with '" + ServiceIdentity.SUBJECT_PREFIX + "' are reserved for internal services"));
+        }
         if (userRepository.existsByUsername(command.username())) {
             return Result.failure(ApplicationError.conflict("User", "Username already exists"));
         }
