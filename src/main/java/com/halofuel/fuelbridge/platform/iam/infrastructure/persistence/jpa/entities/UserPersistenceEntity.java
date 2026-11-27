@@ -28,6 +28,12 @@ public class UserPersistenceEntity extends AuditableAbstractPersistenceEntity {
     @Column
     private Long providerId;
 
+    @Column(length = 120)
+    private String fullName;
+
+    @Column(length = 20)
+    private String phone;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),

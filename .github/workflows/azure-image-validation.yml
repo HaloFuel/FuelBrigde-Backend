@@ -1,0 +1,68 @@
+name: Azure - Container Image Validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/azure-image-validation.yml"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pom.xml"
+      - ".mvn/**"
+      - "mvnw"
+      - "fuelbridge-*/**"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-docker-images:
+    name: Validate ${{ matrix.service }} Docker image
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - service: platform
+            dockerfile: ./Dockerfile
+
+          - service: catalog
+            dockerfile: ./fuelbridge-catalog-service/Dockerfile
+
+          - service: notification
+            dockerfile: ./fuelbridge-notification-service/Dockerfile
+
+          - service: reporting
+            dockerfile: ./fuelbridge-reporting-service/Dockerfile
+
+          - service: equipment
+            dockerfile: ./fuelbridge-equipment-service/Dockerfile
+
+          - service: inventory
+            dockerfile: ./fuelbridge-inventory-service/Dockerfile
+
+          - service: payment
+            dockerfile: ./fuelbridge-payment-service/Dockerfile
+
+          - service: fulfillment
+            dockerfile: ./fuelbridge-fulfillment-service/Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: fuelbridge-${{ matrix.service }}:validation

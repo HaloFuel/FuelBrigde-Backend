@@ -6,6 +6,7 @@ import com.halofuel.fuelbridge.platform.iam.application.internal.outboundservice
 import com.halofuel.fuelbridge.platform.iam.domain.model.aggregates.User;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignInCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.commands.SignUpCommand;
+import com.halofuel.fuelbridge.platform.iam.domain.model.commands.UpdateUserProfileCommand;
 import com.halofuel.fuelbridge.platform.iam.domain.model.entities.Role;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.RoleRepository;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.UserRepository;
@@ -38,9 +39,11 @@ public class UserCommandServiceImpl implements UserCommandService {
         if (user.isEmpty()) {
             return Result.failure(ApplicationError.notFound("User", command.username()));
         }
+        // Verify against the stored hash; hashing the input again would produce a new salt.
         if (!hashingService.matches(command.password(), user.get().getPassword())) {
             return Result.failure(ApplicationError.validationError("credentials", "Invalid username or password"));
         }
+        // Issue a token only after credential verification succeeds.
         var token = tokenService.generateToken(user.get().getUsername());
         return Result.success(ImmutablePair.of(user.get(), token));
     }
@@ -53,6 +56,8 @@ public class UserCommandServiceImpl implements UserCommandService {
         var requestedRoles = command.roles().isEmpty()
                 ? List.of(Role.getDefaultRole())
                 : command.roles();
+        // Resolve even the default role to a persisted entity so the user does not
+        // reference a transient Role when its associations are saved.
         var roles = requestedRoles.stream()
                 .map(role -> roleRepository.findByName(role.getName()))
                 .toList();
@@ -66,5 +71,20 @@ public class UserCommandServiceImpl implements UserCommandService {
         return userRepository.findByUsername(command.username())
                 .<Result<User, ApplicationError>>map(Result::success)
                 .orElseGet(() -> Result.failure(ApplicationError.unexpected("sign-up", "Created user could not be reloaded")));
+    }
+
+    @Override
+    public Result<User, ApplicationError> handle(UpdateUserProfileCommand command) {
+        var existing = userRepository.findById(command.userId());
+        if (existing.isEmpty()) {
+            return Result.failure(ApplicationError.notFound("User", String.valueOf(command.userId())));
+        }
+        var user = existing.get();
+        try {
+            user.updateProfile(command.fullName(), command.phone());
+        } catch (IllegalArgumentException ex) {
+            return Result.failure(ApplicationError.validationError("profile", ex.getMessage()));
+        }
+        return Result.success(userRepository.save(user));
     }
 }

@@ -5,6 +5,9 @@ import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFue
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ConfirmFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CreateFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.MarkFuelOrderPaidCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.ReceiveFuelOrderCommand;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.RevertFuelOrderDispatchCommand;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
 
@@ -13,4 +16,7 @@ public interface FuelOrderCommandService {
     Result<FuelOrder, ApplicationError> handle(ConfirmFuelOrderCommand command);
     Result<FuelOrder, ApplicationError> handle(CancelFuelOrderCommand command);
     Result<FuelOrder, ApplicationError> handle(DispatchFuelOrderCommand command);
+    Result<FuelOrder, ApplicationError> handle(MarkFuelOrderPaidCommand command);
+    Result<FuelOrder, ApplicationError> handle(ReceiveFuelOrderCommand command);
+    Result<FuelOrder, ApplicationError> handle(RevertFuelOrderDispatchCommand command);
 }

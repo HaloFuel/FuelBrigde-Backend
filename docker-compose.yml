@@ -1,0 +1,325 @@
+name: fuelbridge-av4
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
+
+    ports:
+      - "127.0.0.1:3307:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mysql -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1' >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # FuelBridge Platform - Monolito residual
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/fuelbridge_platform?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET en .env}
+
+      NOTIFICATION_SERVICE_URL: http://notification:8080
+      CATALOG_SERVICE_URL: http://catalog:8080
+      REPORTING_SERVICE_URL: http://reporting:8080
+      EQUIPMENT_SERVICE_URL: http://equipment:8080
+      INVENTORY_SERVICE_URL: http://inventory:8080
+      FULFILLMENT_SERVICE_URL: http://fulfillment:8080
+      PAYMENT_SERVICE_URL: http://payment:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+  # Catalog Service - Microservicio independiente
+  catalog:
+    build:
+      context: .
+      dockerfile: fuelbridge-catalog-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8081:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_catalog
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET}
+      FUELBRIDGE_API_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+
+  # Notification Service - Microservicio independiente
+  notification:
+    build:
+      context: .
+      dockerfile: fuelbridge-notification-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8082:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_notification
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+      FUELBRIDGE_API_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+
+  # Reporting Service - Microservicio independiente
+  reporting:
+    build:
+      context: .
+      dockerfile: fuelbridge-reporting-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8083:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_reporting
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+      FUELBRIDGE_API_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+
+  # Equipment Service - Gestion de equipos y vehiculos
+  equipment:
+    build:
+      context: .
+      dockerfile: fuelbridge-equipment-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8084:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_equipment
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Conexion REST con IAM del monolito
+      FUELBRIDGE_API_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      platform:
+        condition: service_started
+
+
+
+  # Inventory Service - Gestion y reserva de combustible
+  inventory:
+    build:
+      context: .
+      dockerfile: fuelbridge-inventory-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8085:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_inventory
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+
+  # Payment Service - Gestion de pagos
+  payment:
+    build:
+      context: .
+      dockerfile: fuelbridge-payment-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8086:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_payment
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Ordering permanece en el monolito
+      ORDERING_SERVICE_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+
+  # Fulfillment Service - Gestion de despachos y entregas
+  fulfillment:
+    build:
+      context: .
+      dockerfile: fuelbridge-fulfillment-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8087:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_fulfillment
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Comunicacion REST entre microservicios
+      ORDERING_SERVICE_URL: http://platform:8080
+      INVENTORY_SERVICE_URL: http://inventory:8080
+      EQUIPMENT_SERVICE_URL: http://equipment:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      platform:
+        condition: service_started
+      inventory:
+        condition: service_started
+      equipment:
+        condition: service_started
+
+
+
+  # Ordering Service - Solicitudes y pedidos de combustible
+  ordering:
+    build:
+      context: .
+      dockerfile: fuelbridge-ordering-service/Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8088:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PORT: "8080"
+
+      MYSQLHOST: mysql
+      MYSQLPORT: "3306"
+      MYSQLDATABASE: fuelbridge_ordering
+      MYSQLUSER: root
+      MYSQLPASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+
+      AUTHORIZATION_JWT_SECRET: ${AUTHORIZATION_JWT_SECRET:?Define AUTHORIZATION_JWT_SECRET}
+
+      # Comunicacion REST entre microservicios
+      INVENTORY_SERVICE_URL: http://inventory:8080
+      NOTIFICATION_SERVICE_URL: http://notification:8080
+      # IAM sigue en el monolito hasta que se extraiga (T10.01)
+      IAM_SERVICE_URL: http://platform:8080
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      inventory:
+        condition: service_started
+      notification:
+        condition: service_started
+
+
+volumes:
+  mysql_data:

@@ -1,0 +1,3108 @@
+{
+  "info": {
+    "_postman_id": "71d40c23-3ebb-59e6-be96-00d75a59e772",
+    "name": "FuelBridge API",
+    "description": "Endpoints del monolito FuelBridge (puerto 8080), organizados por bounded context. Los gateways reenvían a los microservicios Catalog, Equipment, Inventory y Reporting.\n\nUso: importa también FuelBridge-Local.postman_environment.json, selecciona el environment, ejecuta Authentication > Iniciar sesión (guarda {{token}} y {{userId}}) y el resto de peticiones usa Authorization: Bearer {{token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Registro, inicio y cierre de sesión (JWT) y recuperación de contraseña. Los endpoints sign-up, sign-in, forgot-password y reset-password son públicos.",
+      "item": [
+        {
+          "name": "Registrar usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authentication/sign-up",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authentication",
+                "sign-up"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"compras.costasur\",\n  \"password\": \"CostaSur!Combustible2026\",\n  \"roles\": [\n    \"ROLE_BUYER\"\n  ],\n  \"companyId\": 101,\n  \"providerId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra un usuario y sus vínculos con comprador o proveedor. roles admite ROLE_BUYER y ROLE_PROVIDER; si la lista está vacía usa el rol predeterminado. Devuelve el usuario sin contraseña. (Endpoint público: no envía Authorization.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Iniciar sesión",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authentication/sign-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authentication",
+                "sign-in"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"compras.costasur\",\n  \"password\": \"CostaSur!Combustible2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Verifica usuario y contraseña y devuelve un JWT para autenticar llamadas al monolito y a los microservicios con el secreto compartido. El script de test guarda el JWT en {{token}} y el id del usuario en {{userId}} del environment. (Endpoint público: no envía Authorization.)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set(\"token\", body.token);",
+                  "  pm.environment.set(\"userId\", body.id);",
+                  "}",
+                  "pm.test(\"Sign-in returns 200 and a token\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.environment.get(\"token\")).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Solicitar recuperación de contraseña",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authentication/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authentication",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"compras.costasur\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Genera un token de restablecimiento (UUID, válido 1 hora, de un solo uso) para el usuario indicado por email o username (el username es el correo de la cuenta). Solo se guarda su hash. En esta versión el token se devuelve en la respuesta en lugar de enviarse por correo. Una nueva solicitud invalida los tokens anteriores del usuario. Público. En esta versión el token se devuelve en la respuesta (no hay envío de correo) y el script lo guarda en {{resetToken}}. Usuario desconocido: 404. (Endpoint público: no envía Authorization.)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) { pm.environment.set(\"resetToken\", pm.response.json().token); }",
+                  "pm.test(\"Forgot-password returns 200 and a reset token\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().token).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Restablecer contraseña",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/authentication/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "authentication",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NuevaClave!2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Cambia la contraseña con un token de restablecimiento válido (existente, no expirado y no usado) y lo marca como usado. La nueva contraseña debe tener entre 8 caracteres y 72 bytes. Público. Usa {{resetToken}} (de forgot-password). Token inexistente, expirado o ya usado: 400. newPassword: de 8 caracteres a 72 bytes. (Endpoint público: no envía Authorization.)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Consulta de usuarios y edición del propio perfil.",
+      "item": [
+        {
+          "name": "Listar usuarios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "Devuelve los usuarios registrados con sus roles y vínculos empresariales; excluye contraseñas y tokens."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar usuario",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":userId"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "1101",
+                  "description": "Identificador del usuario destinatario."
+                }
+              ]
+            },
+            "description": "Devuelve los datos públicos del usuario identificado, sin contraseña."
+          },
+          "response": []
+        },
+        {
+          "name": "Editar perfil de usuario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:userId/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":userId",
+                "profile"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "Identificador del usuario cuyo perfil se edita."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rosa Medina Paredes\",\n  \"phone\": \"+51987654321\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Actualiza el nombre completo y el teléfono del usuario. Solo el propio usuario autenticado puede editar su perfil. fullName es obligatorio; un phone vacío lo elimina. Solo el propio usuario autenticado puede editar su perfil: otro usuario recibe 403; usuario inexistente, 404; fullName vacío, 400."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Buyer Companies",
+      "description": "Empresas compradoras (IAM). El registro (POST) es público.",
+      "item": [
+        {
+          "name": "Registrar empresa compradora",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/buyer-companies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "buyer-companies"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Constructora Costa Sur SAC\",\n  \"ruc\": \"20609876543\",\n  \"sector\": \"CONSTRUCTION\",\n  \"address\": \"Av. Separadora Industrial 2450, Lima\",\n  \"contactEmail\": \"compras@costasur.example\",\n  \"phone\": \"+51987654321\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra una empresa compradora con su RUC, sector y datos de contacto. Este registro es público y no requiere JWT. (Endpoint público: no envía Authorization.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Listar empresas compradoras",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/buyer-companies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "buyer-companies"
+              ]
+            },
+            "description": "Devuelve las empresas compradoras registradas y sus datos de contacto."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar empresa compradora",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/buyer-companies/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "buyer-companies",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "description": "Devuelve la empresa compradora identificada."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar detalle de empresa compradora con historial de pedidos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/buyer-companies/:companyId/details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "buyer-companies",
+                ":companyId",
+                "details"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "description": "Devuelve los datos de la empresa compradora junto con su historial completo de pedidos de combustible."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar empresa compradora",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/buyer-companies/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "buyer-companies",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Constructora Costa Sur SAC\",\n  \"ruc\": \"20609876543\",\n  \"sector\": \"CONSTRUCTION\",\n  \"address\": \"Av. Separadora Industrial 2450, Lima\",\n  \"contactEmail\": \"compras@costasur.example\",\n  \"phone\": \"+51999888777\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reemplaza nombre, RUC, sector, dirección, correo y teléfono de la empresa existente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Provider Companies",
+      "description": "Empresas proveedoras (IAM). El registro (POST) es público.",
+      "item": [
+        {
+          "name": "Registrar empresa proveedora",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-companies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-companies"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Combustibles Andina SAC\",\n  \"ruc\": \"20601234567\",\n  \"rating\": 4.7,\n  \"address\": \"Av. Nestor Gambetta 5800, Callao\",\n  \"phone\": \"+51976543210\",\n  \"fuelTypesOffered\": [\n    \"DIESEL\",\n    \"GASOLINE_95\"\n  ],\n  \"description\": \"Suministro de combustibles para obras y flotas en Lima y Callao.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra un proveedor con su RUC, dirección, combustibles ofrecidos y descripción. Este registro es público y no requiere JWT. (Endpoint público: no envía Authorization.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Listar empresas proveedoras",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-companies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-companies"
+              ]
+            },
+            "description": "Devuelve los proveedores registrados con los combustibles que ofrecen y sus datos empresariales."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar empresa proveedora",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-companies/:providerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-companies",
+                ":providerId"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "description": "Devuelve el proveedor identificado."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar detalle de empresa proveedora con historial de pedidos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-companies/:providerId/details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-companies",
+                ":providerId",
+                "details"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "description": "Devuelve los datos del proveedor junto con su historial completo de pedidos de combustible."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar empresa proveedora",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-companies/:providerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-companies",
+                ":providerId"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Combustibles Andina SAC\",\n  \"ruc\": \"20601234567\",\n  \"rating\": 4.7,\n  \"address\": \"Av. Nestor Gambetta 5800, Callao\",\n  \"phone\": \"+51976543210\",\n  \"fuelTypesOffered\": [\n    \"DIESEL\",\n    \"GASOLINE_95\"\n  ],\n  \"description\": \"Suministro de combustibles para obras y flotas en Lima y Callao.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reemplaza los datos del proveedor existente, incluidos rating, fuelTypesOffered y descripción."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fuel Requests / Orders",
+      "description": "Solicitudes y pedidos de combustible (Ordering), incluidas las transiciones de estado (confirm, cancel, dispatch, mark-paid, receive).",
+      "item": [
+        {
+          "name": "Fuel Orders",
+          "item": [
+            {
+              "name": "Crear pedido de combustible",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"companyId\": 101,\n  \"providerId\": 202,\n  \"fuelProductId\": 303,\n  \"equipmentId\": 305,\n  \"requestedQuantity\": 1000,\n  \"deliveryAddress\": \"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\n  \"scheduledDate\": \"2026-10-15\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Registra un pedido PENDING y calcula el precio total usando el precio vigente del producto y la cantidad solicitada."
+              },
+              "response": []
+            },
+            {
+              "name": "Confirmar pedido",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId",
+                    "confirm"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Cambia el estado del pedido a CONFIRMED y publica el evento que solicita una notificación al comprador. No requiere cuerpo. Solo desde PENDING; desde cualquier otro estado responde 409 (\"Cannot transition from X to CONFIRMED\")."
+              },
+              "response": []
+            },
+            {
+              "name": "Cancelar pedido",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId",
+                    "cancel"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Cambia el estado del pedido a CANCELLED y publica el evento que solicita una notificación al comprador. No requiere cuerpo. Solo desde PENDING o CONFIRMED; desde cualquier otro estado responde 409 (\"Cannot transition from X to CANCELLED\")."
+              },
+              "response": []
+            },
+            {
+              "name": "Despachar pedido",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId/dispatch",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId",
+                    "dispatch"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Despacha un pedido PENDING, cambia su estado a DISPATCHED y solicita una notificación al comprador. No requiere cuerpo. Solo desde PENDING."
+              },
+              "response": []
+            },
+            {
+              "name": "Marcar pedido como pagado",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId/mark-paid",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId",
+                    "mark-paid"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Cambia el estado del pedido a PAID. Lo invoca Payment al completar el pago del pedido; un pedido CANCELLED no puede marcarse como pagado. No requiere cuerpo. Solo desde PENDING_PAYMENT; desde cualquier otro estado responde 409."
+              },
+              "response": []
+            },
+            {
+              "name": "Registrar recepción del pedido",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId/receive",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId",
+                    "receive"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Cambia el estado de un pedido DISPATCHED a PENDING_PAYMENT. Lo invoca Fulfillment al completar la entrega. No requiere cuerpo. Solo desde DISPATCHED; desde cualquier otro estado responde 409."
+              },
+              "response": []
+            },
+            {
+              "name": "Listar pedidos de combustible",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders"
+                  ]
+                },
+                "description": "Devuelve todos los pedidos registrados con sus cantidades, precios, destinos y estados."
+              },
+              "response": []
+            },
+            {
+              "name": "Consultar pedido de combustible",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/:orderId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    ":orderId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": "4101",
+                      "description": "Identificador del pedido de combustible."
+                    }
+                  ]
+                },
+                "description": "Devuelve el pedido identificado con su producto, equipo y fecha programada."
+              },
+              "response": []
+            },
+            {
+              "name": "Listar pedidos de una empresa",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/company/:companyId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    "company",
+                    ":companyId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "companyId",
+                      "value": "101",
+                      "description": "Identificador de la empresa compradora."
+                    }
+                  ]
+                },
+                "description": "Devuelve los pedidos de la empresa compradora; una lista vacía indica que no tiene pedidos."
+              },
+              "response": []
+            },
+            {
+              "name": "Listar pedidos de un proveedor",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-orders/provider/:providerId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-orders",
+                    "provider",
+                    ":providerId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "providerId",
+                      "value": "202",
+                      "description": "Identificador de la empresa proveedora."
+                    }
+                  ]
+                },
+                "description": "Devuelve los pedidos asignados al proveedor indicado."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Fuel Requests",
+          "item": [
+            {
+              "name": "Crear solicitud de combustible",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-requests",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-requests"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"buyerCompanyId\": 101,\n  \"providerId\": 202,\n  \"equipmentId\": 305,\n  \"fuelProductId\": 303,\n  \"fuelType\": \"DIESEL\",\n  \"productName\": \"Diesel B5 S-50\",\n  \"quantity\": 1000,\n  \"unit\": \"L\",\n  \"unitPrice\": 4.8,\n  \"deliveryAddress\": \"Av. Separadora Industrial 2450, Villa El Salvador, Lima\",\n  \"deliveryDate\": \"2026-10-15\",\n  \"source\": \"MANUAL\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Registra una solicitud PENDING y comprueba que el producto exista y pertenezca al proveedor indicado. El origen predeterminado es MANUAL."
+              },
+              "response": []
+            },
+            {
+              "name": "Listar solicitudes de combustible",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-requests?buyerCompanyId=101",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "buyerCompanyId",
+                      "value": "101",
+                      "description": "Filtro opcional por empresa compradora."
+                    },
+                    {
+                      "key": "providerId",
+                      "value": "202",
+                      "description": "Filtro opcional por empresa proveedora.",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Lista las solicitudes. Si buyerCompanyId está presente, filtra por comprador; de lo contrario usa providerId cuando esté presente. Sin filtros devuelve todas."
+              },
+              "response": []
+            },
+            {
+              "name": "Consultar solicitud de combustible",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-requests/:requestId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-requests",
+                    ":requestId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "requestId",
+                      "value": "5101",
+                      "description": "Identificador de la solicitud de combustible."
+                    }
+                  ]
+                },
+                "description": "Devuelve el detalle de la solicitud identificada: comprador, proveedor, producto, cantidad, precio unitario, entrega, estado y motivo de rechazo si existe."
+              },
+              "response": []
+            },
+            {
+              "name": "Aceptar solicitud de combustible",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-requests/:requestId/accept",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-requests",
+                    ":requestId",
+                    "accept"
+                  ],
+                  "variable": [
+                    {
+                      "key": "requestId",
+                      "value": "5101",
+                      "description": "Identificador de la solicitud de combustible."
+                    }
+                  ]
+                },
+                "description": "Acepta una solicitud PENDING, crea un pedido con el precio vigente del producto y marca la solicitud como APPROVED. Devuelve el pedido creado. No requiere cuerpo. Solo desde PENDING; en otro estado responde 409."
+              },
+              "response": []
+            },
+            {
+              "name": "Rechazar solicitud de combustible",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/fuel-requests/:requestId/reject",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "fuel-requests",
+                    ":requestId",
+                    "reject"
+                  ],
+                  "variable": [
+                    {
+                      "key": "requestId",
+                      "value": "5101",
+                      "description": "Identificador de la solicitud de combustible."
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"No hay disponibilidad para la fecha solicitada.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Rechaza una solicitud PENDING y registra un motivo obligatorio, eliminando espacios al inicio y al final. Solo desde PENDING; en otro estado responde 409."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Pagos de pedidos (Payment).",
+      "item": [
+        {
+          "name": "Registrar pago",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 4101,\n  \"companyId\": 101,\n  \"amount\": 4800,\n  \"paymentMethod\": \"BANK_TRANSFER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Crea un pago PENDING para el pedido, empresa compradora, importe y método indicados. Rechaza un segundo pago para el mismo pedido."
+          },
+          "response": []
+        },
+        {
+          "name": "Completar pago",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/:paymentId/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":paymentId",
+                "complete"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "6101",
+                  "description": "Identificador del pago."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionReference\": \"BCP-20261009-004801\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Marca el pago como COMPLETED, registra la referencia de transacción y fecha de pago, y cambia el pedido asociado a PAID."
+          },
+          "response": []
+        },
+        {
+          "name": "Reembolsar pago",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/:paymentId/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":paymentId",
+                "refund"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "6101",
+                  "description": "Identificador del pago."
+                }
+              ]
+            },
+            "description": "Marca como REFUNDED un pago que esté COMPLETED. No requiere cuerpo."
+          },
+          "response": []
+        },
+        {
+          "name": "Marcar pago como fallido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/:paymentId/fail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":paymentId",
+                "fail"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "6101",
+                  "description": "Identificador del pago."
+                }
+              ]
+            },
+            "description": "Marca como FAILED un pago que esté PENDING. No requiere cuerpo."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar pagos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
+            },
+            "description": "Devuelve los pagos registrados con su importe, método y estado."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pago",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/:paymentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":paymentId"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "6101",
+                  "description": "Identificador del pago."
+                }
+              ]
+            },
+            "description": "Devuelve el pago identificado y, cuando existan, la referencia de transacción y fecha de pago."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pago de un pedido",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/order/:orderId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "order",
+                ":orderId"
+              ],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": "4101",
+                  "description": "Identificador del pedido de combustible."
+                }
+              ]
+            },
+            "description": "Devuelve el pago asociado al pedido indicado."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar pagos de una empresa",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/company/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "company",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "description": "Devuelve los pagos de la empresa compradora; devuelve una lista vacía si no hay pagos."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Deliveries",
+      "description": "Entregas (Fulfillment).",
+      "item": [
+        {
+          "name": "Programar entrega",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 4101,\n  \"providerId\": 202,\n  \"driverId\": 801,\n  \"vehicleId\": 901,\n  \"scheduledDate\": \"2026-10-15\",\n  \"notes\": \"Entregar Diesel B5 en el tanque de la obra; coordinar con el supervisor.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Programa la entrega del pedido y asigna un conductor y vehículo del proveedor. Comprueba disponibilidad, capacidad, stock y ausencia de otra entrega para el pedido."
+          },
+          "response": []
+        },
+        {
+          "name": "Despachar entrega",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/:deliveryId/dispatch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                ":deliveryId",
+                "dispatch"
+              ],
+              "variable": [
+                {
+                  "key": "deliveryId",
+                  "value": "7101",
+                  "description": "Identificador de la entrega."
+                }
+              ]
+            },
+            "description": "Marca la entrega como DISPATCHED y registra la fecha y hora de despacho. No requiere cuerpo."
+          },
+          "response": []
+        },
+        {
+          "name": "Completar entrega",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/:deliveryId/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                ":deliveryId",
+                "complete"
+              ],
+              "variable": [
+                {
+                  "key": "deliveryId",
+                  "value": "7101",
+                  "description": "Identificador de la entrega."
+                }
+              ]
+            },
+            "description": "Marca la entrega como DELIVERED, registra su finalización y actualiza el pedido asociado. No requiere cuerpo."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar entrega fallida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/:deliveryId/fail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                ":deliveryId",
+                "fail"
+              ],
+              "variable": [
+                {
+                  "key": "deliveryId",
+                  "value": "7101",
+                  "description": "Identificador de la entrega."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"El acceso a la obra permanece cerrado.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Marca la entrega como FAILED y guarda el motivo recibido en notes."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar entregas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries"
+              ]
+            },
+            "description": "Devuelve las entregas registradas, sus asignaciones y estado actual."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar entregas de un proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/provider/:providerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                "provider",
+                ":providerId"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "description": "Filtra las entregas por el proveedor indicado; puede devolver una lista vacía."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar entrega",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/:deliveryId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                ":deliveryId"
+              ],
+              "variable": [
+                {
+                  "key": "deliveryId",
+                  "value": "7101",
+                  "description": "Identificador de la entrega."
+                }
+              ]
+            },
+            "description": "Devuelve la entrega identificada con su conductor, vehículo y fechas de seguimiento."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar entrega de un pedido",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deliveries/order/:orderId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deliveries",
+                "order",
+                ":orderId"
+              ],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": "4101",
+                  "description": "Identificador del pedido de combustible."
+                }
+              ]
+            },
+            "description": "Devuelve la entrega asociada al pedido indicado."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Vehicles",
+      "description": "Vehículos de proveedores (Fulfillment).",
+      "item": [
+        {
+          "name": "Listar vehículos de un proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vehicles?providerId=202",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vehicles"
+              ],
+              "query": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Filtro obligatorio por empresa proveedora."
+                }
+              ]
+            },
+            "description": "Devuelve los registros de vehículo del proveedor indicado por el filtro obligatorio providerId."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar vehículo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vehicles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vehicles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "901",
+                  "description": "Identificador del vehículo."
+                }
+              ]
+            },
+            "description": "Devuelve los datos del vehículo identificado."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar vehículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vehicles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vehicles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": 202,\n  \"licensePlate\": \"BFG-482\",\n  \"brand\": \"Volvo\",\n  \"model\": \"FM 460 Cisterna\",\n  \"capacity\": 12000,\n  \"unit\": \"L\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Registra un vehículo del proveedor. Si status está vacío usa AVAILABLE. Si unit no está indicado usa LITERS."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar vehículo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vehicles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vehicles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "901",
+                  "description": "Identificador del vehículo."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": 202,\n  \"licensePlate\": \"BFG-482\",\n  \"brand\": \"Volvo\",\n  \"model\": \"FM 460 Cisterna\",\n  \"capacity\": 12000,\n  \"unit\": \"L\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Actualiza los datos del vehículo existente. Si providerId es nulo conserva el proveedor actual; si status está vacío usa AVAILABLE."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar vehículo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vehicles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vehicles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "901",
+                  "description": "Identificador del vehículo."
+                }
+              ]
+            },
+            "description": "Elimina el vehículo identificado y devuelve una respuesta sin cuerpo."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Drivers",
+      "description": "Conductores de proveedores (Fulfillment).",
+      "item": [
+        {
+          "name": "Listar conductores de un proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drivers?providerId=202",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers"
+              ],
+              "query": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Filtro obligatorio por empresa proveedora."
+                }
+              ]
+            },
+            "description": "Devuelve los registros de conductor del proveedor indicado por el filtro obligatorio providerId."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar conductor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drivers/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "801",
+                  "description": "Identificador del conductor."
+                }
+              ]
+            },
+            "description": "Devuelve los datos del conductor identificado."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar conductor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drivers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": 202,\n  \"firstName\": \"Carlos\",\n  \"lastName\": \"Quispe\",\n  \"licenseNumber\": \"Q45892176\",\n  \"phoneNumber\": \"+51987654321\",\n  \"email\": \"carlos.quispe@andina-combustibles.example\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Registra un conductor del proveedor. Si status está vacío usa AVAILABLE."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar conductor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drivers/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "801",
+                  "description": "Identificador del conductor."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": 202,\n  \"firstName\": \"Carlos\",\n  \"lastName\": \"Quispe\",\n  \"licenseNumber\": \"Q45892176\",\n  \"phoneNumber\": \"+51987654321\",\n  \"email\": \"carlos.quispe@andina-combustibles.example\",\n  \"status\": \"AVAILABLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Actualiza los datos del conductor existente. Si providerId es nulo conserva el proveedor actual; si status está vacío usa AVAILABLE."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar conductor",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/drivers/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "801",
+                  "description": "Identificador del conductor."
+                }
+              ]
+            },
+            "description": "Elimina el conductor identificado y devuelve una respuesta sin cuerpo."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fuel Products (Inventory gateway)",
+      "description": "Gateway del monolito hacia el microservicio Inventory.",
+      "item": [
+        {
+          "name": "Listar productos de combustible",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products"
+              ]
+            },
+            "description": "Reenvía al microservicio Inventory la consulta de todos los productos registrados."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar producto de combustible",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products/:fuelProductId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products",
+                ":fuelProductId"
+              ],
+              "variable": [
+                {
+                  "key": "fuelProductId",
+                  "value": "303",
+                  "description": "Identificador del producto de combustible."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Inventory la consulta del producto identificado."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar productos de un proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products/provider/:providerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products",
+                "provider",
+                ":providerId"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Inventory la consulta de los productos del proveedor indicado."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar producto de combustible",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Diésel B5\",\n  \"fuelType\": \"DIESEL\",\n  \"pricePerUnit\": 16.5,\n  \"unit\": \"GAL\",\n  \"availableStock\": 1000,\n  \"capacity\": 20000,\n  \"providerId\": 202,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Inventory el registro de un producto con precio, unidad, stock y capacidad."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products/:fuelProductId/update-stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products",
+                ":fuelProductId",
+                "update-stock"
+              ],
+              "variable": [
+                {
+                  "key": "fuelProductId",
+                  "value": "303",
+                  "description": "Identificador del producto de combustible."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newStock\": 1500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Inventory el nuevo stock disponible; debe ser un número mayor o igual a cero."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar producto de combustible",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products/:fuelProductId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products",
+                ":fuelProductId"
+              ],
+              "variable": [
+                {
+                  "key": "fuelProductId",
+                  "value": "303",
+                  "description": "Identificador del producto de combustible."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Diésel B5\",\n  \"fuelType\": \"DIESEL\",\n  \"pricePerUnit\": 16.5,\n  \"unit\": \"GAL\",\n  \"availableStock\": 1000,\n  \"capacity\": 20000,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Inventory la actualización completa del producto sin cambiar su proveedor."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar producto de combustible",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fuel-products/:fuelProductId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fuel-products",
+                ":fuelProductId"
+              ],
+              "variable": [
+                {
+                  "key": "fuelProductId",
+                  "value": "303",
+                  "description": "Identificador del producto de combustible."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Inventory la eliminación del producto identificado."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Equipment (Equipment gateway)",
+      "description": "Gateway del monolito hacia el microservicio Equipment.",
+      "item": [
+        {
+          "name": "Listar equipos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment"
+              ]
+            },
+            "description": "Reenvía al microservicio Equipment la consulta de todos los equipos registrados."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar equipo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/:equipmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                ":equipmentId"
+              ],
+              "variable": [
+                {
+                  "key": "equipmentId",
+                  "value": "305",
+                  "description": "Identificador del equipo."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Equipment la consulta del equipo identificado."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar equipos de una empresa",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/company/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                "company",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Equipment la consulta de los equipos de la empresa compradora."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar equipo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Excavadora Caterpillar 320\",\n  \"equipmentType\": \"EXCAVATOR\",\n  \"licensePlate\": \"EQ-320-LIM\",\n  \"fuelType\": \"DIESEL\",\n  \"tankCapacity\": 400,\n  \"currentLevel\": 80,\n  \"location\": \"Obra Villa El Salvador, Lima\",\n  \"status\": \"ACTIVE\",\n  \"autoRefill\": true,\n  \"refillThreshold\": 25,\n  \"lastRefillDate\": \"2026-10-08\",\n  \"companyId\": 101,\n  \"favoriteProviderId\": 202\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Equipment el registro de un equipo de la empresa compradora."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar equipo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/:equipmentId/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                ":equipmentId",
+                "update"
+              ],
+              "variable": [
+                {
+                  "key": "equipmentId",
+                  "value": "305",
+                  "description": "Identificador del equipo."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Excavadora Caterpillar 320\",\n  \"equipmentType\": \"EXCAVATOR\",\n  \"licensePlate\": \"EQ-320-LIM\",\n  \"fuelType\": \"DIESEL\",\n  \"tankCapacity\": 400,\n  \"currentLevel\": 80,\n  \"location\": \"Obra Villa El Salvador, Lima\",\n  \"status\": \"ACTIVE\",\n  \"autoRefill\": true,\n  \"refillThreshold\": 25,\n  \"lastRefillDate\": \"2026-10-08\",\n  \"favoriteProviderId\": 202\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Equipment la actualización del equipo sin cambiar su empresa propietaria."
+          },
+          "response": []
+        },
+        {
+          "name": "Asignar proveedor favorito",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/:equipmentId/favorite-provider",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                ":equipmentId",
+                "favorite-provider"
+              ],
+              "variable": [
+                {
+                  "key": "equipmentId",
+                  "value": "305",
+                  "description": "Identificador del equipo."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": 202\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Equipment la asignación del proveedor favorito del equipo."
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar recepción de combustible",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/:equipmentId/fuel-receipts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                ":equipmentId",
+                "fuel-receipts"
+              ],
+              "variable": [
+                {
+                  "key": "equipmentId",
+                  "value": "305",
+                  "description": "Identificador del equipo."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 240\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Equipment los litros entregados; el nivel nunca supera la capacidad del tanque."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar equipo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/equipment/:equipmentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "equipment",
+                ":equipmentId"
+              ],
+              "variable": [
+                {
+                  "key": "equipmentId",
+                  "value": "305",
+                  "description": "Identificador del equipo."
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Equipment la eliminación del equipo identificado."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Provider Ratings (Catalog gateway)",
+      "description": "Gateway del monolito hacia el microservicio Catalog.",
+      "item": [
+        {
+          "name": "Listar calificaciones de proveedores",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-ratings?companyId=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-ratings"
+              ],
+              "query": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Filtro opcional por empresa compradora."
+                },
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Filtro opcional por empresa proveedora.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Reenvía al microservicio Catalog los filtros companyId y providerId y devuelve sus calificaciones sin transformar la respuesta."
+          },
+          "response": []
+        },
+        {
+          "name": "Calificar proveedor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-ratings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-ratings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": 101,\n  \"providerId\": 202,\n  \"rating\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía el JWT y la calificación al microservicio Catalog. rating debe ser un entero de 1 a 5; companyId y providerId identifican empresas existentes. Conserva los errores del servicio."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar calificación",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/provider-ratings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-ratings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1201",
+                  "description": "Identificador del calificación."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": 101,\n  \"providerId\": 202,\n  \"rating\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reenvía al microservicio Catalog la actualización de una calificación. Los identificadores empresariales no pueden cambiar; rating debe ser un entero de 1 a 5."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics (Reporting gateway)",
+      "description": "Gateway del monolito hacia el microservicio Reporting.",
+      "item": [
+        {
+          "name": "Consultar KPIs de la plataforma",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/platform",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "platform"
+              ]
+            },
+            "description": "Reenvía el JWT al microservicio Reporting y devuelve sus KPIs globales en JSON. Conserva el código HTTP y el cuerpo del servicio."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar KPIs de un proveedor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/providers/:providerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "providers",
+                ":providerId"
+              ],
+              "variable": [
+                {
+                  "key": "providerId",
+                  "value": "202",
+                  "description": "Identificador de la empresa proveedora."
+                }
+              ]
+            },
+            "description": "Solicita al microservicio Reporting los KPIs del proveedor identificado, incluidos los ingresos mensuales de sus pagos completados."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar KPIs de un comprador",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/buyers/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "buyers",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora."
+                }
+              ]
+            },
+            "description": "Solicita al microservicio Reporting los KPIs del comprador identificado, incluidos sus gastos mensuales y conteos de pagos."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cerrar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/authentication/sign-out",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "authentication",
+            "sign-out"
+          ]
+        },
+        "description": "Revoca el JWT enviado en el encabezado Authorization: guarda su hash SHA-256 en la lista de tokens revocados hasta que expire. Después, cualquier petición con ese token recibe 401. Requiere {{token}}. Tras un 200 el script vacía {{token}}; el token revocado devuelve 401 en cualquier endpoint protegido. Se ejecuta al final de toda la colección para no invalidar el token que usan las demás carpetas."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sign-out returns 200\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.environment.set(\"token\", \"\"); }"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

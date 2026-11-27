@@ -1,0 +1,55 @@
+// FuelBridge - Fulfillment Service (Sprint 3)
+// Esquema propio: fuelbridge_fulfillment (Database per Service).
+// Renderizar en https://dbdiagram.io
+// Las referencias son lógicas (columnas escalares, sin @ManyToOne ni FOREIGN KEY):
+// driver_id y vehicle_id apuntan a tablas del mismo esquema; order_id y provider_id
+// apuntan a datos de FuelBridge Platform (esquema fuelbridge_platform) y se resuelven por REST.
+
+Project fuelbridge_fulfillment {
+  database_type: 'MySQL'
+  Note: 'Fulfillment Service: conductores, vehículos y entregas'
+}
+
+Table drivers {
+  id bigint [pk, increment]
+  provider_id bigint [not null, note: 'Empresa proveedora (provider_companies en fuelbridge_platform)']
+  first_name varchar(80) [not null]
+  last_name varchar(80) [not null]
+  license_number varchar(60) [not null, unique, note: 'Rechazo 409 DRIVER_CONFLICT si se repite']
+  phone_number varchar(30) [not null]
+  email varchar(160) [not null]
+  status varchar(30) [not null, note: 'AVAILABLE | ASSIGNED']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+Table vehicles {
+  id bigint [pk, increment]
+  provider_id bigint [not null, note: 'Empresa proveedora (provider_companies en fuelbridge_platform)']
+  license_plate varchar(20) [not null, unique, note: 'Rechazo 409 VEHICLE_CONFLICT si se repite']
+  brand varchar(80) [not null]
+  model varchar(80) [not null]
+  capacity double [not null]
+  unit varchar(20) [not null]
+  status varchar(30) [not null, note: 'AVAILABLE | IN_ROUTE']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+Table deliveries {
+  id bigint [pk, increment]
+  order_id bigint [not null, note: 'Pedido de Ordering (fuel_orders en fuelbridge_platform); una entrega por pedido']
+  provider_id bigint [not null]
+  driver_id bigint [not null, note: 'Referencia escalar a drivers.id']
+  vehicle_id bigint [not null, note: 'Referencia escalar a vehicles.id']
+  status varchar(255) [not null, note: 'SCHEDULED | DISPATCHED | DELIVERED | FAILED']
+  scheduled_date varchar(255)
+  dispatched_at datetime
+  delivered_at datetime
+  notes text
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+// Sin líneas Ref: según la convención de 4.1.5, solo se dibuja FK cuando existe una
+// asociación JPA. driver_id, vehicle_id, order_id y provider_id son referencias escalares.

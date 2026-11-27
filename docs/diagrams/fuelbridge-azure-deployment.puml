@@ -1,0 +1,155 @@
+@startuml fuelbridge_azure_deployment
+title T09.09 - Arquitectura Azure propuesta de FuelBridge
+
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultTextAlignment center
+skinparam wrapWidth 180
+skinparam ArrowColor #5D6D7E
+skinparam ArrowThickness 1.1
+
+skinparam package {
+  BackgroundColor<<access>>     #FDF2E9
+  BackgroundColor<<delivery>>   #EBF5FB
+  BackgroundColor<<runtime>>    #E9F7EF
+  BackgroundColor<<data>>       #F4ECF7
+
+  BorderColor<<access>>         #D35400
+  BorderColor<<delivery>>       #1F618D
+  BorderColor<<runtime>>        #239B56
+  BorderColor<<data>>           #7D3C98
+}
+
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #566573
+  RoundCorner 10
+}
+
+skinparam database {
+  BackgroundColor #FCF3CF
+  BorderColor #B7950B
+}
+
+skinparam artifact {
+  BackgroundColor #F5EEF8
+  BorderColor #7D3C98
+}
+
+skinparam cloud {
+  BackgroundColor #EAF2F8
+  BorderColor #1F618D
+}
+
+' =========================== ACCESO EXTERNO ===========================
+package "Acceso externo" <<access>> {
+  actor "Solicitante /\nProveedor" as User
+  rectangle "Frontend Angular\n(Hosting por definir)" as Frontend
+}
+
+' =========================== AUTOMATIZACIÓN ===========================
+package "Automatización" <<delivery>> {
+  cloud "GitHub Actions\nCI/CD propuesto" as CI
+}
+
+' =========================== MICROSOFT AZURE ===========================
+package "Microsoft Azure" <<delivery>> {
+
+  artifact "Azure Container Registry\n(ACR)" as ACR
+
+  package "Azure Container Apps Environment" <<runtime>> {
+    rectangle "FuelBridge Platform\nIAM + Ordering\n(punto de ingreso)" as Platform
+
+    rectangle "Catalog Service" as Catalog
+    rectangle "Notification Service" as Notification
+    rectangle "Reporting Service" as Reporting
+    rectangle "Equipment Service" as Equipment
+    rectangle "Inventory Service" as Inventory
+    rectangle "Payment Service" as Payment
+    rectangle "Fulfillment Service" as Fulfillment
+  }
+
+  package "Persistencia" <<data>> {
+    database "Azure Database for MySQL\nFlexible Server" as MySQL
+
+    package "Esquemas lógicos" <<data>> {
+      rectangle "fuelbridge_platform" as S1
+      rectangle "fuelbridge_catalog" as S2
+      rectangle "fuelbridge_notification" as S3
+      rectangle "fuelbridge_reporting" as S4
+      rectangle "fuelbridge_equipment" as S5
+      rectangle "fuelbridge_inventory" as S6
+      rectangle "fuelbridge_payment" as S7
+      rectangle "fuelbridge_fulfillment" as S8
+    }
+  }
+}
+
+' =========================== RELACIONES EXTERNAS ===========================
+User --> Frontend : HTTPS
+Frontend --> Platform : HTTPS / REST
+
+CI --> ACR : Publicación de imágenes
+
+' =========================== DESPLIEGUE ===========================
+ACR --> Platform : Imagen Docker
+ACR --> Catalog : Imagen Docker
+ACR --> Notification : Imagen Docker
+ACR --> Reporting : Imagen Docker
+ACR --> Equipment : Imagen Docker
+ACR --> Inventory : Imagen Docker
+ACR --> Payment : Imagen Docker
+ACR --> Fulfillment : Imagen Docker
+
+' =========================== COMUNICACIÓN INTERNA ===========================
+Payment --> Platform : Ordering REST
+Platform --> Fulfillment : Ordering REST
+Platform --> Catalog : REST interno
+Platform --> Notification : REST interno
+Platform --> Reporting : REST interno
+Fulfillment --> Inventory : Reserva de stock
+Fulfillment --> Equipment : Recepción de combustible
+
+' =========================== BASE DE DATOS ===========================
+Platform ..> MySQL : JDBC + TLS
+Catalog ..> MySQL : JDBC + TLS
+Notification ..> MySQL : JDBC + TLS
+Reporting ..> MySQL : JDBC + TLS
+Equipment ..> MySQL : JDBC + TLS
+Inventory ..> MySQL : JDBC + TLS
+Payment ..> MySQL : JDBC + TLS
+Fulfillment ..> MySQL : JDBC + TLS
+
+note right of MySQL
+8 esquemas lógicos propuestos:
+- fuelbridge_platform
+- fuelbridge_catalog
+- fuelbridge_notification
+- fuelbridge_reporting
+- fuelbridge_equipment
+- fuelbridge_inventory
+- fuelbridge_payment
+- fuelbridge_fulfillment
+end note
+
+note bottom of CI
+Pipeline propuesto:
+build -> push -> deploy
+end note
+
+note bottom of Platform
+FuelBridge Platform conserva
+IAM + Ordering dentro del monolito.
+end note
+
+legend right
+|= Color |= Significado |
+|<#FDF2E9>| Acceso externo |
+|<#EBF5FB>| Cloud / automatización |
+|<#E9F7EF>| Servicios desplegados |
+|<#F4ECF7>| Persistencia / datos |
+endlegend
+
+@enduml
