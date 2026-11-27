@@ -19,8 +19,11 @@ import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.DriverRe
 import com.halofuel.fuelbridge.platform.fulfillment.domain.repositories.VehicleRepository;
 import com.halofuel.fuelbridge.platform.shared.application.result.ApplicationError;
 import com.halofuel.fuelbridge.platform.shared.application.result.Result;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Optional;
 
@@ -226,6 +229,77 @@ class DeliveryCommandServiceImplTest {
         var result = service.handle(command);
 
         assertEquals("DELIVERY_CONFLICT", errorCode(result));
+        verify(inventoryStock).release(7L, 240.0);
+    }
+
+    // ------------------------------------------------------------------ compensation (T10.05)
+
+    @AfterEach
+    void clearSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /** Runs the command as if inside a transaction and finishes it with the given status. */
+    private Result<Delivery, ApplicationError> scheduleInTransactionEndingWith(CreateDeliveryCommand command,
+                                                                              int completionStatus) {
+        TransactionSynchronizationManager.initSynchronization();
+        var result = service.handle(command);
+        var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        TransactionSynchronizationManager.clearSynchronization();
+        synchronizations.forEach(synchronization -> synchronization.afterCompletion(completionStatus));
+        return result;
+    }
+
+    @Test
+    void theDispatchIsRevertedAndTheStockReleasedWhenTheLocalCommitFails() {
+        var command = scheduleRequest("PENDING");
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+        when(orders.dispatch(ORDER_ID)).thenReturn(TransitionOutcome.APPLIED);
+        when(orders.revertDispatch(ORDER_ID)).thenReturn(TransitionOutcome.APPLIED);
+
+        scheduleInTransactionEndingWith(command, TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        verify(orders).revertDispatch(ORDER_ID);
+        verify(inventoryStock).release(7L, 240.0);
+    }
+
+    @Test
+    void nothingIsCompensatedWhenTheLocalCommitSucceeds() {
+        var command = scheduleRequest("PENDING");
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+        when(orders.dispatch(ORDER_ID)).thenReturn(TransitionOutcome.APPLIED);
+
+        var result = scheduleInTransactionEndingWith(command, TransactionSynchronization.STATUS_COMMITTED);
+
+        assertTrue(result.isSuccess());
+        verify(orders, never()).revertDispatch(any());
+        verify(inventoryStock, never()).release(any(), any());
+    }
+
+    @Test
+    void aRejectedDispatchIsNotReverted() {
+        var command = scheduleRequest("PENDING");
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+        when(orders.dispatch(ORDER_ID)).thenReturn(TransitionOutcome.REJECTED);
+
+        scheduleInTransactionEndingWith(command, TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        verify(orders, never()).revertDispatch(any());
+        verify(inventoryStock).release(7L, 240.0);
+    }
+
+    @Test
+    void theStockIsStillReleasedWhenTheRevertCannotReachOrdering() {
+        var command = scheduleRequest("PENDING");
+        when(inventoryStock.reserve(7L, 240.0)).thenReturn(StockReservationOutcome.RESERVED);
+        when(orders.dispatch(ORDER_ID)).thenReturn(TransitionOutcome.APPLIED);
+        when(orders.revertDispatch(ORDER_ID)).thenReturn(TransitionOutcome.UNAVAILABLE);
+
+        scheduleInTransactionEndingWith(command, TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        verify(orders).revertDispatch(ORDER_ID);
         verify(inventoryStock).release(7L, 240.0);
     }
 
