@@ -8,3 +8,4 @@ CREATE DATABASE IF NOT EXISTS fuelbridge_equipment;
 CREATE DATABASE IF NOT EXISTS fuelbridge_inventory;
 CREATE DATABASE IF NOT EXISTS fuelbridge_fulfillment;
 CREATE DATABASE IF NOT EXISTS fuelbridge_payment;
+CREATE DATABASE IF NOT EXISTS fuelbridge_ordering;
