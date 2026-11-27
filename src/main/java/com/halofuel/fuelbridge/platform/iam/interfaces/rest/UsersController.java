@@ -23,6 +23,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetAllUsersQuery;
+import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByCompanyIdQuery;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByIdQuery;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserResource;
 import com.halofuel.fuelbridge.platform.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
@@ -87,6 +88,27 @@ public class UsersController {
     @GetMapping("/{userId}")
     public ResponseEntity<UserResource> getUserById(@PathVariable Long userId) {
         var result = userQueryService.handle(new GetUserByIdQuery(userId));
+        return result.map(user -> new ResponseEntity<>(
+                        UserResourceFromEntityAssembler.toResourceFromEntity(user), HttpStatus.OK))
+                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    @Operation(
+        summary = "Consultar usuario de una empresa",
+        description = "Devuelve el usuario asociado a la empresa compradora indicada; si hubiera varios, el de menor id. Lo consumen otros microservicios con token de servicio (ROLE_SERVICE) o los usuarios autenticados.",
+        security = { @SecurityRequirement(name = "bearerAuth") },
+        parameters = {
+            @Parameter(name = "companyId", in = ParameterIn.PATH, required = true, description = "Identificador de la empresa compradora.", example = "101")
+        }
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Usuario de la empresa.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.halofuel.fuelbridge.platform.iam.interfaces.rest.resources.UserResource.class), examples = @ExampleObject(name = "respuesta", value = "{\"id\":1101,\"username\":\"compras.costasur\",\"roles\":[\"ROLE_BUYER\"],\"companyId\":101,\"providerId\":null}"))),
+        @ApiResponse(responseCode = "401", description = "JWT ausente, inválido o expirado.", content = @Content),
+        @ApiResponse(responseCode = "404", description = "La empresa no tiene usuario asociado: sin cuerpo de respuesta.", content = @Content)
+    })
+    @GetMapping("/company/{companyId}")
+    public ResponseEntity<UserResource> getUserByCompanyId(@PathVariable Long companyId) {
+        var result = userQueryService.handle(new GetUserByCompanyIdQuery(companyId));
         return result.map(user -> new ResponseEntity<>(
                         UserResourceFromEntityAssembler.toResourceFromEntity(user), HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
