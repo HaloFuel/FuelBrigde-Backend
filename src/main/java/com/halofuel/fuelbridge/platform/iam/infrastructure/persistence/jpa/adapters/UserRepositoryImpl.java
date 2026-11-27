@@ -32,7 +32,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public Optional<User> findByCompanyId(Long companyId) {
-        return userRepository.findByCompanyId(companyId)
+        return userRepository.findFirstByCompanyIdOrderByIdAsc(companyId)
                 .map(UserPersistenceAssembler::toDomainFromPersistence);
     }
 

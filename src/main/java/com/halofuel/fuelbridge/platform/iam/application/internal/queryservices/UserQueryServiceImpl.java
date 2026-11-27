@@ -3,6 +3,7 @@ package com.halofuel.fuelbridge.platform.iam.application.internal.queryservices;
 import com.halofuel.fuelbridge.platform.iam.application.queryservices.UserQueryService;
 import com.halofuel.fuelbridge.platform.iam.domain.model.aggregates.User;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetAllUsersQuery;
+import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByCompanyIdQuery;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByIdQuery;
 import com.halofuel.fuelbridge.platform.iam.domain.model.queries.GetUserByUsernameQuery;
 import com.halofuel.fuelbridge.platform.iam.domain.repositories.UserRepository;
@@ -28,6 +29,11 @@ public class UserQueryServiceImpl implements UserQueryService {
     @Override
     public Optional<User> handle(GetUserByUsernameQuery query) {
         return userRepository.findByUsername(query.username());
+    }
+
+    @Override
+    public Optional<User> handle(GetUserByCompanyIdQuery query) {
+        return userRepository.findByCompanyId(query.companyId());
     }
 
     @Override
