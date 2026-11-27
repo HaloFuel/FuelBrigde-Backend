@@ -2,6 +2,7 @@ package com.halofuel.fuelbridge.platform.steps;
 
 import com.halofuel.fuelbridge.platform.ordering.application.commandservices.FuelOrderCommandService;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.aggregates.FuelOrder;
+import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.CancelFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.commands.DispatchFuelOrderCommand;
 import com.halofuel.fuelbridge.platform.ordering.domain.model.valueobjects.OrderStatus;
 import com.halofuel.fuelbridge.platform.ordering.domain.repositories.FuelOrderRepository;
@@ -73,6 +74,18 @@ public class FuelOrderNotificationSteps {
         fuelOrderCommandService.handle(new DispatchFuelOrderCommand(fuelOrder.getId()));
         var updatedOrder = fuelOrderRepository.findById(fuelOrder.getId()).orElseThrow();
         assertEquals(OrderStatus.DISPATCHED, updatedOrder.getStatus());
+    }
+
+    @When("the buyer tries to cancel the fuel order")
+    public void theBuyerTriesToCancelTheFuelOrder() {
+        assertThrows(IllegalStateException.class,
+                () -> fuelOrderCommandService.handle(new CancelFuelOrderCommand(fuelOrder.getId())));
+    }
+
+    @Then("the fuel order status remains {string}")
+    public void theFuelOrderStatusRemains(String status) {
+        var stored = fuelOrderRepository.findById(fuelOrder.getId()).orElseThrow();
+        assertEquals(OrderStatus.valueOf(status), stored.getStatus());
     }
 
     @Then("a {string} should be published")
