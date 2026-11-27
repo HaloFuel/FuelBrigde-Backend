@@ -28,6 +28,20 @@ Feature: Fuel Order State Transitions Requested by Other Services
     Then the transition response status code should be 409
     And the stored fuel order status should be "PENDING"
 
+  @T10.05
+  Scenario: Reverting the dispatch of a dispatched order returns it to pending
+    Given a stored fuel order with status "DISPATCHED"
+    When a service requests the "revert-dispatch" transition for the stored order
+    Then the transition response status code should be 200
+    And the stored fuel order status should be "PENDING"
+
+  @T10.05
+  Scenario: Reverting the dispatch of an order that was not dispatched is rejected
+    Given a stored fuel order with status "PENDING_PAYMENT"
+    When a service requests the "revert-dispatch" transition for the stored order
+    Then the transition response status code should be 409
+    And the stored fuel order status should be "PENDING_PAYMENT"
+
   Scenario: Requesting a transition for an unknown order returns not found
     When a service requests the "receive" transition for order 999999
     Then the transition response status code should be 404
