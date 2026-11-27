@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "71d40c23-3ebb-59e6-be96-00d75a59e772",
     "name": "FuelBridge API",
-    "description": "Endpoints del monolito FuelBridge (puerto 8080), organizados por bounded context. Los gateways reenvían a los microservicios Catalog, Equipment, Inventory y Reporting.\n\nUso: importa también FuelBridge-Local.postman_environment.json, selecciona el environment, ejecuta Authentication > Iniciar sesión (guarda {{token}} y {{userId}}) y el resto de peticiones usa Authorization: Bearer {{token}}.",
+    "description": "Endpoints del monolito FuelBridge (puerto 8080), organizados por bounded context. Los gateways reenvían a los microservicios Catalog, Equipment, Inventory y Reporting. Incluye endpoints de comunicación entre servicios (por ejemplo, Users > Consultar usuario de una empresa, que consumen Ordering y Notification con token de servicio).\n\nUso: importa también FuelBridge-Local.postman_environment.json, selecciona el environment, ejecuta Authentication > Iniciar sesión (guarda {{token}} y {{userId}}) y el resto de peticiones usa Authorization: Bearer {{token}}.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -204,7 +204,7 @@
     },
     {
       "name": "Users",
-      "description": "Consulta de usuarios y edición del propio perfil.",
+      "description": "Consulta de usuarios (por id y por empresa) y edición del propio perfil.",
       "item": [
         {
           "name": "Listar usuarios",
@@ -263,6 +263,106 @@
               ]
             },
             "description": "Devuelve los datos públicos del usuario identificado, sin contraseña."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar usuario de una empresa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Company user lookup returns 200 with the company's user\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.be.a(\"number\");",
+                  "  pm.expect(body.username).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(body.companyId).to.eql(101);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/company/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "company",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "101",
+                  "description": "Identificador de la empresa compradora cuyo usuario se consulta."
+                }
+              ]
+            },
+            "description": "Endpoint de consumo interno entre servicios: Ordering y Notification lo llaman con un token de servicio (ROLE_SERVICE) para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. Aquí se invoca con el JWT del usuario autenticado. Si la empresa tuviera varios usuarios, devuelve el de menor id. Requiere haber ejecutado antes Authentication > Registrar usuario (crea el usuario de la empresa 101). Responde 200 con id, username, roles, companyId y providerId."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar usuario de una empresa sin usuario (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Company without a user returns 404\", function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/company/:companyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "company",
+                ":companyId"
+              ],
+              "variable": [
+                {
+                  "key": "companyId",
+                  "value": "999999",
+                  "description": "Identificador de la empresa compradora cuyo usuario se consulta."
+                }
+              ]
+            },
+            "description": "Endpoint de consumo interno entre servicios: Ordering y Notification lo llaman con un token de servicio (ROLE_SERVICE) para obtener el usuario de la empresa compradora al que dirigen sus notificaciones. Aquí se invoca con el JWT del usuario autenticado. Si la empresa tuviera varios usuarios, devuelve el de menor id. Con una empresa que no tiene usuario asociado responde 404 sin cuerpo; los servicios clientes lo interpretan como \"la empresa no tiene usuario\"."
           },
           "response": []
         },
